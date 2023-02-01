@@ -1,0 +1,8 @@
+langchain
+openai
+faiss-cpu
+ratelimit
+tiktoken
+waitress
+mistune
+markdownify

@@ -1,0 +1,220 @@
+*  {
+    min-width: 0;
+    user-select: initial;
+}
+body{
+    font-family: 'Xanh Mono', monospace;
+    display: flex;
+    width: 100%;
+    height: 100%;
+    flex-direction: column;
+}
+
+#logs {
+    display: flex;
+    flex-direction: column;
+    width: 90%;
+    flex-grow: 1;
+    overflow: auto;
+    margin: 1rem;
+}
+
+#logs > div:nth-child(odd) {
+    background-color: var(--background4);
+}
+
+#logs > div {
+    
+    padding: 1rem;
+    border-radius: 1rem;
+}
+
+.msgAuthorImg{
+    background-position: center;
+    background-size: contain;
+    background-repeat: no-repeat;
+    height: 4rem;
+    width: 4rem;
+    min-height: 4rem;
+    min-width: 4rem;
+    border-radius: 12rem;
+    margin-right: 1rem;
+
+}
+
+.msgAuthorName{
+    font-weight: bold;
+font-size: 1.2rem;
+border-bottom: 0.1rem solid var(--foreground);
+width: 90%;
+display: block;
+margin-bottom:1rem;
+}
+
+.msg > div:nth-child(2){
+    width:100%;
+}
+
+.msg{
+    display: flex;
+    flex-direction: row;
+}
+
+#inputs{
+    display: flex;
+    flex-direction: row;
+    width: 90%;
+    margin-bottom: 1.5rem;
+}
+
+#inputs > #input,#inputs > input,#inputs > textarea {
+    appearance: none;
+    width: auto;
+    flex-grow: 1;
+    background: var(--background4);
+    border: 0.1rem solid var(--background4);
+    border-radius: 1rem;
+    color:var(--foreground);
+    min-height: 5em;
+    overflow: auto;
+    padding:1rem;
+    outline: none;
+    resize: none;
+    font-family: inherit;
+    user-select: text;
+    display:inline-block;
+
+}
+
+#inputs.disabled{
+    pointer-events: none;
+    opacity: 0.8;
+    font-weight: bold;
+}
+
+
+#inputs   button{
+    background:var(--highlightFg2);
+    color: var(--background);
+    user-select: none;
+    
+}
+
+#inputs button span{
+    font-size: 2rem;
+    padding: 0;
+    margin: 0;
+}
+
+#inputs.disabled button{
+    background: var(--buttonColor);
+    color:var(--buttonColorFg);    
+}
+
+b.error{
+    color: var(--bugsColor);
+}
+
+#langSelector #lang span{
+    display:none;
+}
+
+#langSelector #lang {
+     
+  }
+  
+  #langSelector  {
+    position: absolute;
+    display: block;
+    font-size:0.6rem;
+    top:0.1rem;
+    left:0.3rem;
+    text-align: left;
+
+  }
+  
+  #langSelector .lang{
+    display:flex;
+    flex-direction: row;
+    align-items: center;
+    width:12rem;
+
+  }
+  #langSelector .lang img{
+    margin:0.4rem;
+    width:1.3rem;
+    height:1.3rem;
+    border-radius: 12rem;
+
+
+  }
+  #langSelector #langs {
+    display: none;
+    position: absolute;
+    background-color: var(--background4);
+    
+    box-shadow: 0px 8px 16px 0px rgba(0,0,0,0.2);
+    z-index: 1;
+    height:30vh;
+    /* top:-30vh; */
+    overflow-y: auto;
+
+  }
+  
+ 
+  
+ 
+  /* Show the dropdown menu on hover */
+  #langSelector:hover  #langs {display: block;}
+ 
+  pre, code{
+    text-shadow: none;
+  }
+
+
+  body.compact .msgAuthorName{
+    display: none;
+}
+
+body.compact .msgAuthorImg{
+    display: none;
+}
+body.compact .msg.human .msgContent::before{
+    content:"> ";
+    margin-right:1rem;
+    font-weight: bold;
+}
+body.compact .msg.human .msgContent{
+    display: flex;
+    flex-direction: row;
+    align-items: center;
+}
+
+
+body.compact #logs {
+    width:100%;
+    margin:0;
+}
+body.compact #logs >div{
+    border-radius:0.1rem;
+    padding: 0.2rem;
+    padding-left: 0.4rem;
+    padding-right: 0.4rem;
+}
+
+body.compact #inputs{
+    margin-bottom:0.1rem;
+    width:100%;
+}
+
+body.compact #inputs #input{
+    border-radius:0.1rem;
+
+}
+body.compact #lang{
+    display:none;
+}
+
+body.compact #submit{
+    margin:0;
+}
