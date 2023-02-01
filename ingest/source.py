@@ -3,8 +3,10 @@ import hashlib
 from langchain.docstore.document import Document
 import os
 import re
-class Source:
-    def __init__(self):
+import indexbuilder
+class Source(indexbuilder.IndexBuilder) :
+    def __init__(self,options):
+        super().__init__(options)
         self.index=[]
         self.path="./jmonkeyengine"
         if not os.path.exists(self.path):

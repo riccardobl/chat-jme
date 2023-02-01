@@ -99,33 +99,52 @@ def ingest() :
     docs=[]
 
     # Parse wiki
-    #w=wiki.Wiki("https://wiki.jmonkeyengine.org/docs/3.4","documentation.html"," jMonkeyEngine Wiki")
-    #for doc in w:
-        #docs.append(doc)
-        #updateIndex(doc)
-    
-    # Parse QuickStart page
-    qs=website.Website()
-    for doc in qs:
-        docs.append(doc)
-        updateIndex(doc)
+    qs=wiki.Wiki({
+        "unit":"jmonkeyengine-wiki",
+        "triggerWords":[]
+    },"https://wiki.jmonkeyengine.org/docs/3.4","documentation.html"," jMonkeyEngine Wiki")
+    docs.extend(qs.updateIndex())
+      
+    # Parse Website
+    qs=website.Website({
+        "unit":"jmonkeyengine-home",
+        "triggerWords":[]
+    })
+    docs.extend(qs.updateIndex())
 
-    # Parse source (todo)
-    src=source.Source()
-    for doc in src:
-        docs.append(doc)
-        updateIndex(doc)
+    # Parse source
+    qs=source.Source({
+        "unit":"jmonkeyengine-github",
+        "triggerWords":[]   
+    })
+    docs.extend(qs.updateIndex())
+
 
     # Parse forum  (todo)
     pass
 
     # Parse minie wiki
-    # minieWiki=wiki.Wiki("https://stephengold.github.io/Minie/minie","overview.html","The Minie project")
-    # for doc in minieWiki:
-    #     docs.append(doc)
-    #     updateIndex(doc)
+    qs=wiki.Wiki({
+        "unit":"minie-wiki",
+        "triggerWords":["minie"]
+    },"https://stephengold.github.io/Minie/minie","overview.html","The Minie project")
+    docs.extend(qs.updateIndex())
 
-    # 
+
+    # Parse lemur wiki
+    qs=wiki.Wiki({
+        "unit":"lemur-wiki",
+        "triggerWords":["lemur"]
+    },"https://github.com/jMonkeyEngine-Contributions/Lemur/wiki","Getting-Started","Lemur")
+    docs.extend(qs.updateIndex())
+
+
+    # Parse lemur wiki
+    qs=wiki.Wiki({
+        "unit":"zayes-wiki",
+        "triggerWords":["zay-es","zayes","ecs","entity-component-system","entity system","entity component system"]
+    },"https://github.com/jMonkeyEngine-Contributions/zay-es/wiki","Documentation","Zay-ES")
+    docs.extend(qs.updateIndex())
     
     #cleanIndex(docs)
  

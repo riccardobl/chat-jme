@@ -4,8 +4,11 @@ from bs4 import BeautifulSoup
 import hashlib
 from langchain.docstore.document import Document
 import time
-class Website:
-    def __init__(self):
+import indexbuilder
+
+class Website(indexbuilder.IndexBuilder):
+    def __init__(self,options):
+        super().__init__(options)
         self.index=[
             "https://jmonkeyengine.org/start/",
             "https://jmonkeyengine.org/",
@@ -15,6 +18,8 @@ class Website:
         ]
         self.malformGuard="jMonkeyEngine"
         
+
+         
 
     def __iter__(self):
         for link in self.index:
