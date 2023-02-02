@@ -18,7 +18,7 @@ from langchain.utils import get_from_dict_or_env
 
 OPENAI_EMBEDDING_CACHE={}
 class OpenAICachedEmbeddings(BaseModel, Embeddings):
-
+    
 
     """Wrapper around OpenAI embedding models.
 
@@ -83,16 +83,17 @@ class OpenAICachedEmbeddings(BaseModel, Embeddings):
     
 
     def _embedding_func(self, text: str, *, engine: str) -> List[float]:
+        useCache=len(text)<200
         cache=OPENAI_EMBEDDING_CACHE
         # prevent cache from growing too big
-        if len(cache)>1000:
+        if len(cache)>100:
             cache={}
 
-        if text in cache :
+        if useCache and text in cache :
             return cache[text]
         else:
             embeddings=self._embedding_func2(text, engine=engine)
-            cache[text]=embeddings
+            if useCache: cache[text]=embeddings
             return embeddings
 
     def _embedding_func2(self, text: str, *, engine: str) -> List[float]:

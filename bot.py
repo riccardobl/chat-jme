@@ -94,19 +94,14 @@ def createChain():
 The documentation is located at https://wiki.jmonkeyengine.org . 
 The source code is located at this github repository https://github.com/jMonkeyEngine/jmonkeyengine/ .
 In the answer includes a code snippet as an example.
-If the question is not about jMonkeyEngine, politely inform them that you are tuned to only answer questions about jMonkeyEngine,
-unless the human asks for a good night story, in that case make up a story.
-If you don't know the answer, just say "Hmm, I'm not sure." Don't try to make up an answer.
-If the human thanks you, say that you are welcome.
-
-When replying please consider these important rules:
+When replying consider these rules:
 - Applets are not supported anymore so don't answer things related to Applets.
 - When the question contains "show me the code", write a code snippet in the answer.
 - IOs is not supported anymore so don't answer things related to IOs.
 - You can use any code from github and the documentation
 
 Given the following extracted parts of a long document and a question, create a conversational final answer with references ("SOURCES"). 
-If you don't know the answer, just say that you don't know. ALWAYS return a new line and then the "SOURCES" part in your answer.
+ALWAYS prefix "SOURCES" with four new lines.
 
 ========= 
 {summaries}
@@ -123,8 +118,27 @@ FINAL ANSWER in Markdown: """
         template=template
     )
 
+
+    # refine_prompt_template = (
+    # "The original question is as follows: {question}\n"
+    # "We have provided an existing answer: {existing_answer}\n"
+    # "We have the opportunity to refine the existing answer"
+    # "(only if needed) with some more context below.\n"
+    # "------------\n"
+    # "{context_str}\n"
+    # "------------\n"
+    # "Given the new context, refine the original answer to better "
+    # "answer the question. "
+    # "If the context isn't useful, return the original answer."
+    # )
+    # refine_prompt = PromptTemplate(
+    #     input_variables=["question", "existing_answer", "context_str"],
+    #     template=refine_prompt_template,
+    # )
+
 #     combinePromptTemplate="""Given the following extracted parts of a long document and a question, create a final answer. 
 # If you don't know the answer, just say that you don't know. Don't try to make up an answer.
+# {history}
 
 # QUESTION: {question}
 # =========
@@ -133,27 +147,45 @@ FINAL ANSWER in Markdown: """
 # FINAL ANSWER in Markdown:
 # """
 #     combinePrompt = PromptTemplate(
-#         template=combinePromptTemplate, input_variables=["summaries", "question"]
+#         template=combinePromptTemplate, input_variables=["history","summaries", "question"]
 #     )
 
     #memory = ConversationBufferMemory(human_prefix="QUESTION",ai_prefix="ANSWER", memory_key="history", input_key="question")
     # memory = ConversationBufferWindowMemory(human_prefix="QUESTION: ",ai_prefix="FINAL ANSWER in Markdown: ", memory_key="history", input_key="question", k=4)
-    memory=ConversationSummaryBufferMemory(llm=OpenAI(), max_token_limit=1024,human_prefix="QUESTION",ai_prefix="ANSWER", memory_key="history", input_key="question")
+    memory=ConversationSummaryBufferMemory(llm=OpenAI(), max_token_limit=512,human_prefix="QUESTION",ai_prefix="ANSWER", memory_key="history", input_key="question")
     # llm = OpenAI(temperature=0, model_name="text-davinci-003")
     chain = load_qa_with_sources_chain(
         OpenAI(
             temperature=0.0,
             model_name="text-davinci-003",
-            max_tokens=2248,
+            max_tokens=2048,
         ), 
         memory=memory, 
         prompt=prompt, 
         verbose=True,
+        # question_prompt=prompt,
+        #refine_prompt=refine_prompt,
         #question_prompt=prompt,
-        #combine_prompt=combinePrompt,
-        #chain_type="map_reduce"
+        # combine_prompt=combinePrompt,
+        # chain_type="map_reduce"
     )
     return chain
+
+
+def queryChain(chain,question):
+    wordSalad=""
+    for h in chain.memory.buffer: wordSalad+=h+" "
+    wordSalad+=" "+question
+        
+    affineDocs=getAffineDocs(question,wordSalad)
+    print("Found ",len(affineDocs), " affine docs")
+        
+    print("Q: ", question)
+    output=chain({"input_documents": affineDocs, "question": question}, return_only_outputs=True)
+    
+
+    print("A :",output)
+    return output
 
 
 sessions={}
@@ -200,7 +232,7 @@ def session():
         sessions[sessionSecret]["timeout"]=time.time()+60*30
     return json.dumps( {
         "sessionSecret": sessionSecret,
-        "helloText":Translator.translate("en",lang,"Introduce yourself")
+        "helloText":Translator.translate("en",lang,"Who are you?")
     })
 
 @app.route("/query",methods = ['POST'])
@@ -226,23 +258,11 @@ def query():
             
         chain=sessions[sessionSecret]["chain"]
 
-
-        wordSalad=""
-        for h in chain.memory.buffer:
-            wordSalad+=h+" "
-        wordSalad+=" "+question
-        
-        #affineDocs=EmbeddingsManager.query(getIndices(wordSalad),question)
-        affineDocs=getAffineDocs(question,wordSalad)
-        print("Found ",len(affineDocs), " affine docs")
-        
-        print("Q: ", question)
-        output=chain({"input_documents": affineDocs, "question": question}, return_only_outputs=True)
-        
+        output=queryChain(chain,question)
+       
         if lang!="en":
             output["output_text"]=Translator.translate("en",lang,output["output_text"])
 
-        print(output)
         #print(chain.memory.buffer)
         return json.dumps(output)
     except Exception as e:

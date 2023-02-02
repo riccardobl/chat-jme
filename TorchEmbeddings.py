@@ -20,18 +20,20 @@ class TorchEmbeddings( Embeddings):
    
 
     def _embedding_func(self, text: str, *, engine: str) -> List[float]:
+        useCache=False #len(text)<200
+
         cache=EMBEDDING_CACHE
         # prevent cache from growing too big
-        if len(cache)>1000:
+        if len(cache)>100:
             cache={}
 
-        if text in cache :
+        if useCache and text in cache  :
             return cache[text]
         else:
             embeddings = self.model.encode([text],device=self.torch_device)
             embeddings=embeddings.copy().astype(np.float32)
             embeddings = embeddings[0]
-            cache[text]=embeddings
+            if useCache : cache[text]=embeddings
             return embeddings
 
     def embed_documents(self, texts: List[str]) -> List[List[float]]:

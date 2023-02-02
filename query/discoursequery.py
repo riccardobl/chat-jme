@@ -19,7 +19,7 @@ from sumy.utils import get_stop_words
 from bs4 import BeautifulSoup
 from embeddings import EmbeddingsManager
 from . import basequery
-
+import gc
 
     
 
@@ -33,33 +33,63 @@ class DiscourseQuery( basequery.BaseQuery):
 
 
 
-    def _createDoc(self,content,link):
+    def _createFragments(self,topicId,content,link):
         content = "\n".join([t for t in content.split("\n") if t])
         hash=hashlib.sha256(link.encode('utf-8')).hexdigest()    
         doc = Document(page_content=content, metadata={"source": link, "hash":hash})
-        return doc
+
+        splitter = CharacterTextSplitter(
+            separator="\n",
+            chunk_size=512,
+            chunk_overlap=0,
+            length_function=len,
+        )
+        frags=[]
+        i=0
+        for chunk in splitter.split_text(doc.page_content):
+            doc=Document(page_content=chunk, metadata=doc.metadata)
+            fragmentId=str(topicId)+"-"+str(i)
+            v=self._loadFromCache(fragmentId,True)
+            if v==None:
+                if not v:
+                    v=EmbeddingsManager.new(doc,"cpu")
+                    self._saveToCache(fragmentId,v,True)
+            frags.append(v)
+            # frags.append({
+            #     "doc":doc,
+            #     "v":v
+            # })
+
+
+        
+        
+        return frags
 
     def _summarize(self,content,url,sentences_count=4, withCodeBlocks=True):
-        LANGUAGE="english"
-        SENTENCES_COUNT = sentences_count
-        stemmer = Stemmer(LANGUAGE)
-        summarizer = Summarizer(stemmer)
-        summarizer.stop_words = get_stop_words(LANGUAGE)
-        parser = HtmlParser.from_string(content, url=url,tokenizer=Tokenizer(LANGUAGE))
-        text_summary=""
-        for sentence in summarizer(parser.document, SENTENCES_COUNT):
-            text_summary+=str(sentence)
+        try:
+            LANGUAGE="english"
+            SENTENCES_COUNT = sentences_count
+            stemmer = Stemmer(LANGUAGE)
+            summarizer = Summarizer(stemmer)
+            summarizer.stop_words = get_stop_words(LANGUAGE)
+            parser = HtmlParser.from_string(content, url=url,tokenizer=Tokenizer(LANGUAGE))
+            text_summary=""
+            for sentence in summarizer(parser.document, SENTENCES_COUNT):
+                text_summary+=str(sentence)
 
-        if withCodeBlocks:
-            # extract code blocks and add them back to the summary
-            soup = BeautifulSoup(content, 'html.parser')
-            codeBlocks=soup.find_all("pre")
-            for codeBlock in codeBlocks:
-                text_summary+="<pre><code>"
-                text_summary+=codeBlock.text
-                text_summary+="</code></pre>"
+            if withCodeBlocks:
+                # extract code blocks and add them back to the summary
+                soup = BeautifulSoup(content, 'html.parser')
+                codeBlocks=soup.find_all("pre")
+                for codeBlock in codeBlocks:
+                    text_summary+="<pre><code>"
+                    text_summary+=codeBlock.text
+                    text_summary+="</code></pre>"
 
-        return text_summary
+            return text_summary
+        except Exception as e:
+            print("Error summarizing",e)
+            return ""
 
     def _parseTopic(self,topicId):
         discourseUrl=self.url
@@ -77,15 +107,17 @@ class DiscourseQuery( basequery.BaseQuery):
             d=response.json()
             return d
 
-        v=self._loadFromCache(topicId,True)
-        if not v:
-            print("Get initial question of",topicId)
-            data=getData()
-            initialQuestion=data["title"]+"\n"+data["post_stream"]["posts"][0]["cooked"]
-            v=EmbeddingsManager.new(Document(page_content=initialQuestion),"cpu")
-            self._saveToCache(topicId,v,True)
-        else:
-            print("Get initial question from cache",topicId)
+        def getV():
+            v=self._loadFromCache(topicId,True)
+            if not v:
+                print("Get initial question of",topicId)
+                data=getData()
+                initialQuestion=data["title"]+"\n"+data["post_stream"]["posts"][0]["cooked"]
+                v=EmbeddingsManager.new(Document(page_content=initialQuestion),"cpu")
+                self._saveToCache(topicId,v,True)
+            else:
+                print("Get initial question from cache",topicId)
+            return v
 
         def getContent():
             content=self._loadFromCache(topicId,False)
@@ -104,11 +136,13 @@ class DiscourseQuery( basequery.BaseQuery):
                     nonlocal isQuestion
                     nonlocal isFirst
                     if len(contentPart)==0: return
-                    contentPart=self._summarize(contentPart,f"{discourseUrl}/t/{topicId}",sentences_count=1 if isQuestion else 3,withCodeBlocks=not isQuestion)
+                    contentPart=self._summarize(contentPart,f"{discourseUrl}/t/{topicId}",sentences_count=2 if isQuestion else 3,withCodeBlocks=not isQuestion)
                     if isQuestion:
                         content+="\n\nQUESTION:\n"
                         if isFirst:
-                            content+=data["title"]+"\n"  
+                            author=data["post_stream"]["posts"][0]["name"]
+                            if author==None: author=data["post_stream"]["posts"][0]["username"]
+                            content+=data["title"]+"\n"+"Author: "+author+"\n"  
                             isFirst=False
                     else:
                         content+="\n\nANSWER:\n"                
@@ -129,7 +163,7 @@ class DiscourseQuery( basequery.BaseQuery):
                 self._saveToCache(topicId,content,False)
             else:  
                 print("Get from cache",topicId)
-            return self._createDoc( content,discourseUrl+"/t/"+str(topicId))
+            return self._createFragments(topicId, content,discourseUrl+"/t/"+str(topicId))
         # texts = self.text_splitter.split_text(content)
         # docs = [Document(page_content=t) for t in texts]
         # content=self.summaryChain.run(docs)
@@ -142,8 +176,8 @@ class DiscourseQuery( basequery.BaseQuery):
         # initialQuestion
         return {
             "id":topicId,
-            "content":getContent,
-            "v":v
+            "frags":getContent,
+            "v":getV
         }
 
     def _getCachePath(self,id):
@@ -185,7 +219,7 @@ class DiscourseQuery( basequery.BaseQuery):
         except Exception as e:
             print("Error saving to cache",isEmbedding,e)
  
-    def _search(self,question,limit=10,n=1):
+    def _search(self,question,limit=5,k=4,n=1):
 
         discourseUrl=self.url
 
@@ -199,26 +233,34 @@ class DiscourseQuery( basequery.BaseQuery):
         jsonData=response.json()
         
         topics=[]
-        if not "topics" in jsonData: return [];
+        if not "topics" in jsonData: return []
         for topic in jsonData["topics"]:
             if len(topics)>=limit: break
             id=topic["id"]
             topicData=self._parseTopic(id)
             topics.append(topicData)
 
+        cache={}
         for topic in topics:
-            res=EmbeddingsManager.queryIndex(topic["v"],question, k=1)
+            v=topic["v"]
+            res=EmbeddingsManager.queryIndex(v(),question, k=1, cache=cache)
             score=None
             for rdoc in res:
                 rscore=rdoc[1]
                 if not score or rscore<score:
                     score=rscore
             topic["score"]=score
+            gc.collect()
         
-        topics = sorted(topics, key=lambda x: x["score"], reverse=False)[:n]
-        topics = [ x["content"]() for x in topics]
+        topics = sorted(topics, key=lambda x: x["score"], reverse=False)[:k]
+        gc.collect()
+        fragments=[]
+        for t in topics:
+            fragments.extend(t["frags"]())            
+        topics=EmbeddingsManager.query(fragments,question, k=n, cache=cache)           
+        print("Found",len(topics),"topics")
         return topics
 
     def getAffineDocs(self, question, wordSalad=None, unitFilter=None):
-        return self._search(question, 4)        
+        return self._search(question)        
 

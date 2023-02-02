@@ -8,9 +8,9 @@ import time
 from langchain.text_splitter import CharacterTextSplitter
 from TorchEmbeddings import TorchEmbeddings
 import utils
+import gc
 from OpenAICachedEmbeddings import OpenAICachedEmbeddings
 class EmbeddingsManager:
-    cache={}
 
    
     @staticmethod
@@ -109,8 +109,14 @@ class EmbeddingsManager:
             return out
 
     @staticmethod
-    def queryIndex(index,query,k=4):
-        embedding =  EmbeddingsManager.embedding_function(index, query)
+    def queryIndex(index,query,k=4, cache=None):
+        embedding=None
+        if cache!=None and query in cache:
+            embedding=cache[query]
+        else:
+            embedding =  EmbeddingsManager.embedding_function(index, query)
+            if cache!=None:
+                cache[query]=embedding
         # embedding=None
 
         # print(index.embedding_function.__class__.__name__)
@@ -146,11 +152,13 @@ class EmbeddingsManager:
             docs.append((doc, scores[0][j]))
         return docs
 
-    def query(indices, query, n=3, k=4):
+    def query(indices, query, n=3, k=4,cache=None):
         results=[]
+        if cache==None: 
+            cache={}
         for index in indices:
             print("Search",index)
-            res=EmbeddingsManager.queryIndex(index,query, k=k),
+            res=EmbeddingsManager.queryIndex(index,query, k=k, cache=cache),
             for res2 in res:
                 for rdoc in res2:
                     results.append({
@@ -159,4 +167,6 @@ class EmbeddingsManager:
                     })        
         best= sorted(results, key=lambda x: x["score"], reverse=False)[:n]
         #best[::-1]      
+        gc.collect()
+        gc.collect()
         return [ x["doc"] for x in best]
