@@ -1,5 +1,6 @@
 {
-    "translationService":"https://translate.frk.wf",
-    "indexPath":"embeddings/"
-
+    "TRANSLATION_SERVICE":"https://translate.frk.wf",
+    "INDEX_PATH":"embeddings/",
+    "CACHE_PATH":"cache/",
+    "JME_HUB_URL":"https://hub.jmonkeyengine.org"
 }

@@ -3,10 +3,10 @@ import hashlib
 from langchain.docstore.document import Document
 import os
 import re
-import indexbuilder
+from . import indexbuilder
 class Source(indexbuilder.IndexBuilder) :
-    def __init__(self,options):
-        super().__init__(options)
+    def __init__(self,config,options):
+        super().__init__(config,options)
         self.index=[]
         self.path="./jmonkeyengine"
         if not os.path.exists(self.path):
@@ -27,7 +27,6 @@ class Source(indexbuilder.IndexBuilder) :
             content = re.sub(r'.*?(package [A-Za-z0-9.]+;)', r"\1", content, flags=re.DOTALL)
             content = "\n".join([t for t in content.split("\n") if t])
             hash=hashlib.sha256(content.encode('utf-8')).hexdigest()    
-            print(content)
             doc = Document(page_content=content, metadata={"source": link, "hash":hash})
             yield doc
 

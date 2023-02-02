@@ -4,11 +4,10 @@ from bs4 import BeautifulSoup
 import hashlib
 from langchain.docstore.document import Document
 import time
-import indexbuilder
-
+from . import indexbuilder
 class Website(indexbuilder.IndexBuilder):
-    def __init__(self,options):
-        super().__init__(options)
+    def __init__(self,config,options):
+        super().__init__(config,options)
         self.index=[
             "https://jmonkeyengine.org/start/",
             "https://jmonkeyengine.org/",
@@ -37,7 +36,6 @@ class Website(indexbuilder.IndexBuilder):
                         text =article.get_text()
                         articlesFull+="\n"+text
                     articlesFull = "\n".join([t for t in articlesFull.split("\n") if t])
-                    print(articlesFull)
                     hash=hashlib.sha256(articlesFull.encode('utf-8')).hexdigest()    
                     doc = Document(page_content=articlesFull, metadata={"source": link, "hash":hash})
                     yield doc

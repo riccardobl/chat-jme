@@ -1,4 +1,5 @@
 import os
+import traceback
 from langchain.chains.qa_with_sources import load_qa_with_sources_chain
 from langchain.chains import ConversationChain
 from langchain.llms import OpenAI
@@ -7,7 +8,7 @@ from langchain.cache import InMemoryCache
 from langchain.llms import OpenAI
 from langchain.chains.conversation.memory import ConversationSummaryBufferMemory,ConversationBufferMemory,ConversationBufferWindowMemory
 from langchain.prompts import PromptTemplate
-from embeddings import Embeddings
+from embeddings import EmbeddingsManager
 from flask import Flask, send_from_directory
 import json
 import time
@@ -21,21 +22,61 @@ import re
 import requests
 from waitress import serve
 from translator import Translator
+import sys
+from query.discoursequery import DiscourseQuery
+from query.embeddingsquery import EmbeddingsQuery
 
-INDEX_PATH="index/"
-CACHE_PATH="langchain.db"
+CONFIG=None
 
+# def getIndices(wordSalad):
+#     loaded_parts = []
+#     # for each folder in CONFIG["INDEX_PATH"]
+#     for indexPath in os.listdir(CONFIG["INDEX_PATH"]):
+#         #load info.json
+#         infoPath = os.path.join(CONFIG["INDEX_PATH"],indexPath,"info.json")
+#         info={}
+#         if os.path.exists(infoPath):
+#             with open(infoPath,"r",encoding="utf-8") as f:
+#                 info = json.loads(f.read())
+#         included=wordSalad==None or len(info["triggerWords"])==0
+#         if not included:
+#             for w in info["triggerWords"]:
+#                 if w.lower() in wordSalad.lower():
+#                     included=True
+#                     break
+#         if included:
+#             path=os.path.join(CONFIG["INDEX_PATH"],indexPath)
+#             parts=[os.path.join(path, file) for file in os.listdir(path)]
+#             for part in parts:
+#                 try:
+#                     loaded_parts.append(EmbeddingsManager.read(part))
+#                 except Exception as e:
+#                     print("Error loading", part, e)
+#                     continue    
+#     return  loaded_parts
 
-def getIndices():
-    parts=[os.path.join(INDEX_PATH, file) for file in os.listdir(INDEX_PATH)]
-    loaded_parts = []
-    for part in parts:
-        try:
-            loaded_parts.append(Embeddings.read(part))
-        except Exception as e:
-            print("Error loading", part, e)
-            continue    
-    return  loaded_parts
+QUERIERS=[]
+
+args=sys.argv
+confiFile=args[1] if len(args)>1 else "config.json"
+print("Use config file", confiFile)
+with open(confiFile, "r") as f:
+    CONFIG=json.load(f)
+    QUERIERS=[
+        EmbeddingsQuery(CONFIG),
+        DiscourseQuery(CONFIG,CONFIG["JME_HUB_URL"])
+    ]
+    Translator.init(CONFIG)
+
+def getAffineDocs(question, wordSalad=None, unitFilter=None):
+    affineDocs=[]
+    for q in QUERIERS:
+        print("Get affine docs from",q)
+        v=q.getAffineDocs(question, wordSalad, unitFilter)
+        print(v)
+        if v!=None:
+            affineDocs.extend(v)
+    return affineDocs
     
 def rewriteError(error):
     if error.startswith("Rate limit reached ") :
@@ -43,7 +84,8 @@ def rewriteError(error):
 
 def rewrite(question):
     # replace app, applet, game, application with simple application 
-    question=re.sub(r"\b(app|applet|game|application)\b", "simple application", question)
+    question=re.sub(r"\b(app|applet|game|application)\b", "simple application", question, flags=re.IGNORECASE)
+
     return question
 
 
@@ -80,6 +122,20 @@ FINAL ANSWER in Markdown: """
         input_variables=[ "history", "question", "summaries"], 
         template=template
     )
+
+#     combinePromptTemplate="""Given the following extracted parts of a long document and a question, create a final answer. 
+# If you don't know the answer, just say that you don't know. Don't try to make up an answer.
+
+# QUESTION: {question}
+# =========
+# {summaries}
+# =========
+# FINAL ANSWER in Markdown:
+# """
+#     combinePrompt = PromptTemplate(
+#         template=combinePromptTemplate, input_variables=["summaries", "question"]
+#     )
+
     #memory = ConversationBufferMemory(human_prefix="QUESTION",ai_prefix="ANSWER", memory_key="history", input_key="question")
     # memory = ConversationBufferWindowMemory(human_prefix="QUESTION: ",ai_prefix="FINAL ANSWER in Markdown: ", memory_key="history", input_key="question", k=4)
     memory=ConversationSummaryBufferMemory(llm=OpenAI(), max_token_limit=1024,human_prefix="QUESTION",ai_prefix="ANSWER", memory_key="history", input_key="question")
@@ -92,14 +148,17 @@ FINAL ANSWER in Markdown: """
         ), 
         memory=memory, 
         prompt=prompt, 
-        verbose=True
+        verbose=True,
+        #question_prompt=prompt,
+        #combine_prompt=combinePrompt,
+        #chain_type="map_reduce"
     )
     return chain
 
 
 sessions={}
 #langchain.llm_cache = InMemoryCache()
-langchain.llm_cache = SQLiteCache(database_path=CACHE_PATH)
+langchain.llm_cache = SQLiteCache(database_path=CONFIG["CACHE_PATH"]+"/langchain.db")
 
 def clearSessions():
     while True:
@@ -127,7 +186,7 @@ def session():
     lang=body["lang"] if "lang" in body  else "en"
 
 
-    if not "sessionSecret" in body:
+    if not "sessionSecret" in body or body["sessionSecret"].strip()=="":
         sessionSecret=createSessionSecret()
     else:
         sessionSecret=body["sessionSecret"]
@@ -166,8 +225,15 @@ def query():
             return json.dumps({"error": "Session expired"})
             
         chain=sessions[sessionSecret]["chain"]
+
+
+        wordSalad=""
+        for h in chain.memory.buffer:
+            wordSalad+=h+" "
+        wordSalad+=" "+question
         
-        affineDocs=Embeddings.query(getIndices(),question)
+        #affineDocs=EmbeddingsManager.query(getIndices(wordSalad),question)
+        affineDocs=getAffineDocs(question,wordSalad)
         print("Found ",len(affineDocs), " affine docs")
         
         print("Q: ", question)
@@ -177,15 +243,16 @@ def query():
             output["output_text"]=Translator.translate("en",lang,output["output_text"])
 
         print(output)
-        print(chain.memory.buffer)
+        #print(chain.memory.buffer)
         return json.dumps(output)
     except Exception as e:
+        print(e)
+        print(traceback.format_exc())
         errorStr=str(e)
         errorStr=rewriteError(errorStr)
-        print(errorStr)
         return json.dumps({"error": errorStr})
 
-# serve static files from ./frontend
+
 @app.route('/<path:filename>')
 def serveFrontend(filename):
     return send_from_directory('frontend/', filename)
@@ -193,6 +260,8 @@ def serveFrontend(filename):
 @app.route('/')
 def serveIndex():
     return send_from_directory('frontend/', "index.html")
+
+
 
 
 

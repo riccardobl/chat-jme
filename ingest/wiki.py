@@ -4,11 +4,11 @@ from bs4 import BeautifulSoup
 import hashlib
 from langchain.docstore.document import Document
 import time
-import indexbuilder
+from . import indexbuilder
 
 class Wiki(indexbuilder.IndexBuilder):
-    def __init__(self, options, baseUrl, entryPoint, malformGuard):
-        super().__init__(options)
+    def __init__(self, config,options, baseUrl, entryPoint, malformGuard):
+        super().__init__(config,options)
         self.index=[]
         self.baseUrl=baseUrl
         self.entryPoint=entryPoint
@@ -62,7 +62,7 @@ class Wiki(indexbuilder.IndexBuilder):
                     for article in soup.select('#wiki-body'):
                         text =article.get_text()
                         articlesFull+="\n"+text
-                        
+
                     articlesFull = "\n".join([t for t in articlesFull.split("\n") if t])
                     hash=hashlib.sha256(articlesFull.encode('utf-8')).hexdigest()    
                     doc = Document(page_content=articlesFull, metadata={"source": link, "hash":hash})

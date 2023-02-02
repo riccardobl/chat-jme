@@ -3,6 +3,10 @@ import markdownify
 class Translator:
     TRANSLATION_SERVICE="https://translate.frk.wf"
     supportedLangs=None
+    
+    @staticmethod
+    def init(config):
+        Translator.TRANSLATION_SERVICE=config["TRANSLATION_SERVICE"]
 
     @staticmethod
     def detect(text):

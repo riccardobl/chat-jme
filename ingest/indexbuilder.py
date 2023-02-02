@@ -5,18 +5,18 @@ from langchain.vectorstores.faiss import FAISS
 from langchain.embeddings.openai import OpenAIEmbeddings
 from langchain.chains.qa_with_sources import load_qa_with_sources_chain
 from langchain.llms import OpenAI
-import pickle
-from ingest import website, wiki,source
-from ratelimit import limits,sleep_and_retry
-from embeddings import Embeddings
+from embeddings import EmbeddingsManager
 import json
 class IndexBuilder :
-    def __init__(self, options):
+    def __init__(self,config, options):
         self.options = options
+        self.config=config
 
     def updateIndex(self):
         docs=[]
-        rootPath = os.path.join("embeddings",self.options["unit"] if "unit" in self.options else "root")
+        if not "INDEX_PATH" in self.config:
+            raise Exception("INDEX_PATH not set")
+        rootPath = os.path.join(self.config["INDEX_PATH"],self.options["unit"] if "unit" in self.options else "root")
         if not os.path.exists(rootPath):
             os.makedirs(rootPath)
         infoPath = os.path.join(rootPath,"info.json")
@@ -48,18 +48,31 @@ class IndexBuilder :
                 print("Already processed", doc.metadata["source"])
                 return
 
-            source_chunks = []
-            splitter = CharacterTextSplitter(
-                separator="\n",
-                chunk_size=1000,
-                chunk_overlap=200,
-                length_function=len,
-            )
+            # source_chunks = []
+            # splitter = CharacterTextSplitter(
+            #     separator="\n",
+            #     chunk_size=1000,
+            #     chunk_overlap=200,
+            #     length_function=len,
+            # )
 
-            for chunk in splitter.split_text(doc.page_content):
-                source_chunks.append(Document(page_content=chunk, metadata=doc.metadata))
-            faiss=Embeddings.new(source_chunks)
-            Embeddings.write(embedPath, faiss)          
+            # for chunk in splitter.split_text(doc.page_content):
+            #     source_chunks.append(Document(page_content=chunk, metadata=doc.metadata))
+            
+            # faiss=EmbeddingsManager.new(source_chunks)
+
+            faiss=EmbeddingsManager.new(doc)
+            #source_chunks = [source_chunks[i:i + 50] for i in range(0, len(source_chunks), 50)]
+
+            #faisss=[]
+            #for ss in source_chunks:
+                #print("Processing", len(ss),"chunks")
+                #faiss=Embeddings.new(ss)
+                #faisss.append(faiss)
+
+            #faiss=Embeddings.merge(faisss)
+            EmbeddingsManager.write(embedPath, faiss)          
+
             print ("Updated",  doc.metadata["source"])
         except Exception as e:
             print("Error processing",  doc.metadata["source"], e)

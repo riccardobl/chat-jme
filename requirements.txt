@@ -6,3 +6,5 @@ tiktoken
 waitress
 mistune
 markdownify
+sumy
+sentence-transformers

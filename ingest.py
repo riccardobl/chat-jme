@@ -8,7 +8,8 @@ from langchain.llms import OpenAI
 import pickle
 from ingest import website, wiki,source
 from ratelimit import limits,sleep_and_retry
-from embeddings import Embeddings
+from embeddings import EmbeddingsManager
+import sys,json
 INDEX_PATH="index/"
 
 # def findAdocs(path) :
@@ -68,52 +69,52 @@ def cleanIndex(docs):
 #     return FAISS.from_documents(source_chunks, OpenAIEmbeddings())
 
 
-def updateIndex(doc):    
-    try:
-        embedPath = os.path.join(INDEX_PATH, doc.metadata["hash"] + ".bin")
-        if os.path.exists(embedPath):
-            print("Already processed", doc.metadata["source"])
-            return
-        source_chunks = []
-        splitter = CharacterTextSplitter(
-            separator="\n",
-            chunk_size=1000,
-            chunk_overlap=200,
-            length_function=len,
-        )
-        for chunk in splitter.split_text(doc.page_content):
-            source_chunks.append(Document(page_content=chunk, metadata=doc.metadata))
-        #faiss=FAISS.from_documents(source_chunks, OpenAIEmbeddings())
-        faiss=Embeddings.new(source_chunks)
-        Embeddings.write(embedPath, faiss)
-        # faiss=createFAISS(source_chunks)
-        # faiss.save_local(embedPath)
-        # with open(embedPath, "wb") as f:
-        #     pickle.dump(faiss, f)
-        print ("Updated",  doc.metadata["source"])
-    except Exception as e:
-        print("Error processing",  doc.metadata["source"], e)
+# def updateIndex(doc):    
+#     try:
+#         embedPath = os.path.join(INDEX_PATH, doc.metadata["hash"] + ".bin")
+#         if os.path.exists(embedPath):
+#             print("Already processed", doc.metadata["source"])
+#             return
+#         source_chunks = []
+#         splitter = CharacterTextSplitter(
+#             separator="\n",
+#             chunk_size=1000,
+#             chunk_overlap=200,
+#             length_function=len,
+#         )
+#         for chunk in splitter.split_text(doc.page_content):
+#             source_chunks.append(Document(page_content=chunk, metadata=doc.metadata))
+#         #faiss=FAISS.from_documents(source_chunks, OpenAIEmbeddings())
+#         faiss=EmbeddingsManager.new(source_chunks)
+#         EmbeddingsManager.write(embedPath, faiss)
+#         # faiss=createFAISS(source_chunks)
+#         # faiss.save_local(embedPath)
+#         # with open(embedPath, "wb") as f:
+#         #     pickle.dump(faiss, f)
+#         print ("Updated",  doc.metadata["source"])
+#     except Exception as e:
+#         print("Error processing",  doc.metadata["source"], e)
  
 
-def ingest() :
+def ingest(config) :
     docs=[]
 
     # Parse wiki
-    qs=wiki.Wiki({
+    qs=wiki.Wiki(config,{
         "unit":"jmonkeyengine-wiki",
         "triggerWords":[]
     },"https://wiki.jmonkeyengine.org/docs/3.4","documentation.html"," jMonkeyEngine Wiki")
     docs.extend(qs.updateIndex())
       
     # Parse Website
-    qs=website.Website({
+    qs=website.Website(config,{
         "unit":"jmonkeyengine-home",
         "triggerWords":[]
     })
     docs.extend(qs.updateIndex())
 
     # Parse source
-    qs=source.Source({
+    qs=source.Source(config,{
         "unit":"jmonkeyengine-github",
         "triggerWords":[]   
     })
@@ -124,7 +125,7 @@ def ingest() :
     pass
 
     # Parse minie wiki
-    qs=wiki.Wiki({
+    qs=wiki.Wiki(config,{
         "unit":"minie-wiki",
         "triggerWords":["minie"]
     },"https://stephengold.github.io/Minie/minie","overview.html","The Minie project")
@@ -132,7 +133,7 @@ def ingest() :
 
 
     # Parse lemur wiki
-    qs=wiki.Wiki({
+    qs=wiki.Wiki(config,{
         "unit":"lemur-wiki",
         "triggerWords":["lemur"]
     },"https://github.com/jMonkeyEngine-Contributions/Lemur/wiki","Getting-Started","Lemur")
@@ -140,7 +141,7 @@ def ingest() :
 
 
     # Parse lemur wiki
-    qs=wiki.Wiki({
+    qs=wiki.Wiki(config,{
         "unit":"zayes-wiki",
         "triggerWords":["zay-es","zayes","ecs","entity-component-system","entity system","entity component system"]
     },"https://github.com/jMonkeyEngine-Contributions/zay-es/wiki","Documentation","Zay-ES")
@@ -148,4 +149,10 @@ def ingest() :
     
     #cleanIndex(docs)
  
-ingest()
+args=sys.argv
+confiFile=args[1] if len(args)>1 else "config.json"
+print("Use config file", confiFile)
+with open(confiFile, "r") as f:
+    config=json.load(f)
+     
+    ingest(config)
