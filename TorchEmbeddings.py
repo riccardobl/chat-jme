@@ -10,6 +10,11 @@ import numpy as np
 
 EMBEDDING_CACHE={}
 class TorchEmbeddings( Embeddings):
+    def preload(self):
+        print("Preloading MiniLM L6 v2")
+        model = SentenceTransformer('sentence-transformers/paraphrase-MiniLM-L6-v2')
+        print("Done")
+
 
     models={}
     def __init__(self, device):

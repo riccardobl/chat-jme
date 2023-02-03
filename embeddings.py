@@ -12,6 +12,9 @@ import gc
 from OpenAICachedEmbeddings import OpenAICachedEmbeddings
 class EmbeddingsManager:
 
+    @staticmethod
+    def preload():
+        TorchEmbeddings("cpu").preload()
    
     @staticmethod
     def new(doc,backend="openai"):

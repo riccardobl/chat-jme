@@ -26,9 +26,11 @@ from Summary import Summary
 # This contains several Ugly hacks to contain memory usage.
 # Needs a rewrite!
 class DiscourseQuery( basequery.BaseQuery):
-    def __init__(self, config,url, apiKey=None, apiSecret=None):
+    def __init__(self, config,url, searchFilter="in:first order:likes", knowledgeCutoff="2023-02-03",apiKey=None, apiSecret=None):
         self.CONFIG = config
         self.url = url
+        self.searchFilter=searchFilter
+        self.knowledgeCutoff=knowledgeCutoff
 
 
     def _createFragments(self,topicId,content,link):
@@ -207,7 +209,7 @@ class DiscourseQuery( basequery.BaseQuery):
     def _search(self,question,limit=5,k=3,n=3,j=5, merge=True):
         discourseUrl=self.url
         params = {
-            "q": question+" in:first order:likes before:2023-02-01"
+            "q": question+" "+self.searchFilter+" before:"+self.knowledgeCutoff
         }        
         print("searching",discourseUrl, params)
         response = requests.get(discourseUrl+"/search.json", params=params)

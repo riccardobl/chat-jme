@@ -35,9 +35,14 @@ confiFile=args[1] if len(args)>1 else "config.json"
 print("Use config file", confiFile)
 with open(confiFile, "r") as f:
     CONFIG=json.load(f)
+    EmbeddingsManager.preload()
     QUERIERS=[
         EmbeddingsQuery(CONFIG),
-        DiscourseQuery(CONFIG,CONFIG["JME_HUB_URL"])
+        DiscourseQuery(
+            CONFIG,CONFIG["JME_HUB_URL"],
+            searchFilter=CONFIG["JME_HUB_SEARCH_FILTER"],
+            knowledgeCutoff=CONFIG["JME_HUB_KNOWLEDGE_CUTOFF"]
+        )
     ]
     Translator.init(CONFIG)
 
@@ -150,6 +155,8 @@ def langs():
 def session():
     body=request.get_json()
     lang=body["lang"] if "lang" in body  else "en"
+    if lang=="auto":
+        lang="en"
 
 
     if not "sessionSecret" in body or body["sessionSecret"].strip()=="":
@@ -167,7 +174,7 @@ def session():
     return json.dumps( {
         "sessionSecret": sessionSecret,
         "helloText":Translator.translate("en",lang,"Who are you?"),
-        "welcomeText":Translator.translate("en",lang,"Hi there! I'm an AI assistant for the open source game engine jMonkeyEngine. I can help you with questions related to the jMonkeyEngine source code, documentation, and other related topics.")
+        "welcomeText":Translator.translate("en", lang,"Hi there! I'm an AI assistant for the open source game engine jMonkeyEngine. I can help you with questions related to the jMonkeyEngine source code, documentation, and other related topics.")
     })
 
 @app.route("/query",methods = ['POST'])

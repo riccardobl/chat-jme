@@ -74,9 +74,12 @@ class Translator:
         if source==target:
             return text
 
+        if target=="auto":
+            target="en"
+
         # Translation service doesn't support markdown, so we render it to html
         text = mistune.html(text)
-
+        print("Translate", source, target, text)
         for i in range(0,10):
             try:
                 payload = {

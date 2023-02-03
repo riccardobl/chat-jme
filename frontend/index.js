@@ -8,7 +8,6 @@ function appendMsg(from, msg, id, render,classes){
     if(typeof render=="undefined") render=true;
     const logs = document.querySelector("#logs");
     let scrollToBottom = logs.scrollTop + logs.offsetHeight >= logs.scrollHeight-20;
-    console.log(logs.scrollTop + logs.offsetHeight, logs.scrollHeight)
 
     if(typeof id === "undefined") id=NEXT_MESSAGE_ID++;
     let msgEl=document.querySelector("#msg-" + id);
@@ -241,6 +240,18 @@ async function submit(input, hidden){
 }
 
 async function keepAlive(){
+    let lang=getSelectedLang()
+    if(lang=="auto") {
+        if(!window.userAgentLang){
+            const userAgentLang=navigator.language || navigator.userLanguage;
+            lang=userAgentLang.split("-")[0];
+            const availableLangs=await getSupportedLangs();
+            if(!availableLangs.find(l=>l.code==lang)) lang="en";
+            window.userAgentLang=lang;
+            console.info("Language is auto, using user agent language: " + lang);
+        }
+        lang=window.userAgentLang;
+    }
     const newSession=await fetch("/session", {
         method: "POST",
         headers: {
@@ -248,7 +259,7 @@ async function keepAlive(){
         },
         body: JSON.stringify({
             sessionSecret:window.sessionSecret,
-            lang: getSelectedLang()
+            lang: lang
         })
     }).then(res => res.json());
 
@@ -275,7 +286,6 @@ async function loadLanguageSelector(){
         langEl.innerHTML=`
             <img src="${lang.icon}" alt="${lang.name}"/> <span>${lang.name}</span>
         `;
-        console.log(lang.code, selectedLang)
         if(lang.code==selectedLang) {
             selectorEl.querySelector("#lang").innerHTML=langEl.innerHTML;
         }
