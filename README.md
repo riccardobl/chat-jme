@@ -1,5 +1,13 @@
 
 
+
+```bash
+docker run -d --restart=always \
+-v/srv/jmebot/cache:/cache \
+--name="jmebot" \
+jmebot
+```
+
 ## API
 
 
