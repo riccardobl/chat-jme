@@ -26,6 +26,7 @@ RESPONSE
 {
     sessionSecret:"XYZ", // sessionSecret of the session
     "helloText":"???" // Text that can be used to initiate a conversation with the bot (in the chosen language)
+    "welcomeText": "..." // Hardcoded welcome text in the specified language
 }
 ```
 
