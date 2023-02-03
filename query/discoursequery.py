@@ -20,7 +20,8 @@ from bs4 import BeautifulSoup
 from embeddings import EmbeddingsManager
 from . import basequery
 import gc
-
+import urllib
+from Summary import Summary
 
 # This contains several Ugly hacks to contain memory usage.
 # Needs a rewrite!
@@ -37,7 +38,7 @@ class DiscourseQuery( basequery.BaseQuery):
 
         splitter = CharacterTextSplitter(
             separator="\n",
-            chunk_size=600,
+            chunk_size=1024,
             chunk_overlap=0,
             length_function=len,
         )
@@ -54,31 +55,31 @@ class DiscourseQuery( basequery.BaseQuery):
             frags.append(v)
         return frags
 
-    def _summarize(self,content,url,sentences_count=4, withCodeBlocks=True):
-        try:
-            LANGUAGE="english"
-            SENTENCES_COUNT = sentences_count
-            stemmer = Stemmer(LANGUAGE)
-            summarizer = Summarizer(stemmer)
-            summarizer.stop_words = get_stop_words(LANGUAGE)
-            parser = HtmlParser.from_string(content, url=url,tokenizer=Tokenizer(LANGUAGE))
-            text_summary=""
-            for sentence in summarizer(parser.document, SENTENCES_COUNT):
-                text_summary+=str(sentence)
+    # def _summarize(self,content,url,sentences_count=4, withCodeBlocks=True):
+    #     try:
+    #         LANGUAGE="english"
+    #         SENTENCES_COUNT = sentences_count
+    #         stemmer = Stemmer(LANGUAGE)
+    #         summarizer = Summarizer(stemmer)
+    #         summarizer.stop_words = get_stop_words(LANGUAGE)
+    #         parser = HtmlParser.from_string(content, url=url,tokenizer=Tokenizer(LANGUAGE))
+    #         text_summary=""
+    #         for sentence in summarizer(parser.document, SENTENCES_COUNT):
+    #             text_summary+=str(sentence)
 
-            if withCodeBlocks:
-                # extract code blocks and add them back to the summary
-                soup = BeautifulSoup(content, 'html.parser')
-                codeBlocks=soup.find_all("pre")
-                for codeBlock in codeBlocks:
-                    text_summary+="<pre><code>"
-                    text_summary+=codeBlock.text
-                    text_summary+="</code></pre>"
-            gc.collect()
-            return text_summary
-        except Exception as e:
-            print("Error summarizing",e)
-            return ""
+    #         if withCodeBlocks:
+    #             # extract code blocks and add them back to the summary
+    #             soup = BeautifulSoup(content, 'html.parser')
+    #             codeBlocks=soup.find_all("pre")
+    #             for codeBlock in codeBlocks:
+    #                 text_summary+="<pre><code>"
+    #                 text_summary+=codeBlock.text
+    #                 text_summary+="</code></pre>"
+    #         gc.collect()
+    #         return text_summary
+    #     except Exception as e:
+    #         print("Error summarizing",e)
+    #         return ""
 
     def _parseTopic(self,topicId, j=5):
         discourseUrl=self.url
@@ -124,7 +125,7 @@ class DiscourseQuery( basequery.BaseQuery):
                     nonlocal isQuestion
                     nonlocal isFirst
                     if len(contentPart)==0: return
-                    contentPart=self._summarize(contentPart,f"{discourseUrl}/t/{topicId}",sentences_count=2 if isQuestion else 2,withCodeBlocks=not isQuestion)
+                    contentPart=Summary.summarizeHTML(contentPart,f"{discourseUrl}/t/{topicId}",sentences_count=2 if isQuestion else 2,withCodeBlocks=not isQuestion)
                     c=""
                     if isQuestion:
                         c+="\n\nQUESTION:\n"
@@ -203,13 +204,15 @@ class DiscourseQuery( basequery.BaseQuery):
         except Exception as e:
             print("Error saving to cache",isEmbedding,e)
  
-    def _search(self,question,limit=5,k=3,n=1,j=5):
+    def _search(self,question,limit=5,k=3,n=3,j=5, merge=True):
         discourseUrl=self.url
         params = {
-            "q": question+" in:first order:likes"
+            "q": question+" in:first order:likes before:2023-02-01"
         }        
+        print("searching",discourseUrl, params)
         response = requests.get(discourseUrl+"/search.json", params=params)
         if response.status_code != 200:
+            print("Error searching discourse")
             raise Exception("Error searching discourse")
         jsonData=response.json()        
         topics=[]
@@ -232,14 +235,20 @@ class DiscourseQuery( basequery.BaseQuery):
             gc.collect()       
                 
         topics = sorted(topics, key=lambda x: x["score"], reverse=False)[:k]
-        print("1")
         gc.collect()
 
         fragments=[]
         for t in topics:
             fragments.extend(t["frags"]())            
         topics=EmbeddingsManager.query(fragments,question, k=n, cache=cache)           
-        print("Found",len(topics),"topics")
+        if merge:
+            print("Found",len(topics),"topics, Merge")        
+            mergedTopic=""
+            for t in topics:
+                mergedTopic+=t.page_content+"\n"
+            mergedTopic=Summary.summarizeComplex(mergedTopic)
+            print("Merged in ",len(mergedTopic),"chars")
+            topics= [Document(page_content=mergedTopic, metadata={"source": f"{discourseUrl}/search?q="+urllib.parse.quote(params["q"]), "hash":""})]
         return topics
 
     def getAffineDocs(self, question, wordSalad=None, unitFilter=None):
