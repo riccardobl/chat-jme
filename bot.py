@@ -167,7 +167,7 @@ def session():
     return json.dumps( {
         "sessionSecret": sessionSecret,
         "helloText":Translator.translate("en",lang,"Who are you?"),
-        "welcomeText":Translator.translate("en",lang,"I'm an AI assistant for the open source game engine jMonkeyEngine. I can help you with questions related to the engine, such as point of view, characters, time- or turn-based, genre, setting and background story, gameplay, resources, interaction, winning and losing states, multi-media assets, and interface. ")
+        "welcomeText":Translator.translate("en",lang,"Hi there! I'm an AI assistant for the open source game engine jMonkeyEngine. I can help you with questions related to the jMonkeyEngine source code, documentation, and other related topics.")
     })
 
 @app.route("/query",methods = ['POST'])
