@@ -248,7 +248,7 @@ async function keepAlive(){
         },
         body: JSON.stringify({
             sessionSecret:window.sessionSecret,
-            helloText: getSelectedLang()
+            lang: getSelectedLang()
         })
     }).then(res => res.json());
 
@@ -311,7 +311,12 @@ async function main(){
     loadLanguageSelector();
     setInterval(keepAlive, 60*1000);
     const session=await keepAlive();
-    submit(session.helloText,true);
+    
+    //submit(session.helloText,true);
+    await typeMsg({
+        img:"img/jme.png",
+        name: "Jaime Bot"
+    }, session.welcomeText );
 
     window.addEventListener("hashchange", ()=>{
         window.location.reload();

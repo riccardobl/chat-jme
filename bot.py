@@ -25,6 +25,7 @@ from translator import Translator
 import sys
 from query.discoursequery import DiscourseQuery
 from query.embeddingsquery import EmbeddingsQuery
+from Summary import Summary
 
 CONFIG=None
 QUERIERS=[]
@@ -42,10 +43,12 @@ with open(confiFile, "r") as f:
 
 def getAffineDocs(question, wordSalad=None, unitFilter=None):
     affineDocs=[]
+    #longQuestion=Summary.summarizeComplex(wordSalad)
+    keyWords=Summary.getKeywords(wordSalad)
+    keyWordsString=" ".join(keyWords)
     for q in QUERIERS:
-        print("Get affine docs from",q)
-        v=q.getAffineDocs(question, wordSalad, unitFilter)
-        print(v)
+        print("Get affine docs from",q,"using keywords",keyWordsString)
+        v=q.getAffineDocs(keyWordsString, wordSalad, unitFilter)
         if v!=None:
             affineDocs.extend(v)
     return affineDocs
@@ -73,7 +76,7 @@ When replying consider these rules:
 - You can use any code from github and the documentation
 
 Given the following extracted parts of a long document and a question, create a conversational final answer with references ("SOURCES"). 
-If you don't know the answer, just say that you don't know. ALWAYS prefix "SOURCES" with four new lines.
+ALWAYS prefix "SOURCES" with four new lines.
 
 ========= 
 {summaries}
@@ -163,7 +166,8 @@ def session():
         sessions[sessionSecret]["timeout"]=time.time()+60*30
     return json.dumps( {
         "sessionSecret": sessionSecret,
-        "helloText":Translator.translate("en",lang,"Who are you?")
+        "helloText":Translator.translate("en",lang,"Who are you?"),
+        "welcomeText":Translator.translate("en",lang,"I'm an AI assistant for the open source game engine jMonkeyEngine. I can help you with questions related to the engine, such as point of view, characters, time- or turn-based, genre, setting and background story, gameplay, resources, interaction, winning and losing states, multi-media assets, and interface. ")
     })
 
 @app.route("/query",methods = ['POST'])
