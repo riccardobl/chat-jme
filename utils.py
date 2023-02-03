@@ -9,6 +9,7 @@ def retry(fun,n=10,initialSleep=10):
             print("Retry but first sleep for ",sleep,"seconds")
             time.sleep(sleep)
             sleep=sleep*2
+            if sleep>160: sleep=160
 
     raise Exception("Error calling "+fun.__name__)
 

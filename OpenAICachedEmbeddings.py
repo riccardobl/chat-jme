@@ -83,7 +83,7 @@ class OpenAICachedEmbeddings(BaseModel, Embeddings):
     
 
     def _embedding_func(self, text: str, *, engine: str) -> List[float]:
-        useCache=len(text)<200
+        useCache=False #len(text)<200
         cache=OPENAI_EMBEDDING_CACHE
         # prevent cache from growing too big
         if len(cache)>100:

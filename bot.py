@@ -27,34 +27,6 @@ from query.discoursequery import DiscourseQuery
 from query.embeddingsquery import EmbeddingsQuery
 
 CONFIG=None
-
-# def getIndices(wordSalad):
-#     loaded_parts = []
-#     # for each folder in CONFIG["INDEX_PATH"]
-#     for indexPath in os.listdir(CONFIG["INDEX_PATH"]):
-#         #load info.json
-#         infoPath = os.path.join(CONFIG["INDEX_PATH"],indexPath,"info.json")
-#         info={}
-#         if os.path.exists(infoPath):
-#             with open(infoPath,"r",encoding="utf-8") as f:
-#                 info = json.loads(f.read())
-#         included=wordSalad==None or len(info["triggerWords"])==0
-#         if not included:
-#             for w in info["triggerWords"]:
-#                 if w.lower() in wordSalad.lower():
-#                     included=True
-#                     break
-#         if included:
-#             path=os.path.join(CONFIG["INDEX_PATH"],indexPath)
-#             parts=[os.path.join(path, file) for file in os.listdir(path)]
-#             for part in parts:
-#                 try:
-#                     loaded_parts.append(EmbeddingsManager.read(part))
-#                 except Exception as e:
-#                     print("Error loading", part, e)
-#                     continue    
-#     return  loaded_parts
-
 QUERIERS=[]
 
 args=sys.argv
@@ -101,7 +73,7 @@ When replying consider these rules:
 - You can use any code from github and the documentation
 
 Given the following extracted parts of a long document and a question, create a conversational final answer with references ("SOURCES"). 
-ALWAYS prefix "SOURCES" with four new lines.
+If you don't know the answer, just say that you don't know. ALWAYS prefix "SOURCES" with four new lines.
 
 ========= 
 {summaries}
@@ -119,41 +91,7 @@ FINAL ANSWER in Markdown: """
     )
 
 
-    # refine_prompt_template = (
-    # "The original question is as follows: {question}\n"
-    # "We have provided an existing answer: {existing_answer}\n"
-    # "We have the opportunity to refine the existing answer"
-    # "(only if needed) with some more context below.\n"
-    # "------------\n"
-    # "{context_str}\n"
-    # "------------\n"
-    # "Given the new context, refine the original answer to better "
-    # "answer the question. "
-    # "If the context isn't useful, return the original answer."
-    # )
-    # refine_prompt = PromptTemplate(
-    #     input_variables=["question", "existing_answer", "context_str"],
-    #     template=refine_prompt_template,
-    # )
-
-#     combinePromptTemplate="""Given the following extracted parts of a long document and a question, create a final answer. 
-# If you don't know the answer, just say that you don't know. Don't try to make up an answer.
-# {history}
-
-# QUESTION: {question}
-# =========
-# {summaries}
-# =========
-# FINAL ANSWER in Markdown:
-# """
-#     combinePrompt = PromptTemplate(
-#         template=combinePromptTemplate, input_variables=["history","summaries", "question"]
-#     )
-
-    #memory = ConversationBufferMemory(human_prefix="QUESTION",ai_prefix="ANSWER", memory_key="history", input_key="question")
-    # memory = ConversationBufferWindowMemory(human_prefix="QUESTION: ",ai_prefix="FINAL ANSWER in Markdown: ", memory_key="history", input_key="question", k=4)
     memory=ConversationSummaryBufferMemory(llm=OpenAI(), max_token_limit=512,human_prefix="QUESTION",ai_prefix="ANSWER", memory_key="history", input_key="question")
-    # llm = OpenAI(temperature=0, model_name="text-davinci-003")
     chain = load_qa_with_sources_chain(
         OpenAI(
             temperature=0.0,
@@ -163,11 +101,6 @@ FINAL ANSWER in Markdown: """
         memory=memory, 
         prompt=prompt, 
         verbose=True,
-        # question_prompt=prompt,
-        #refine_prompt=refine_prompt,
-        #question_prompt=prompt,
-        # combine_prompt=combinePrompt,
-        # chain_type="map_reduce"
     )
     return chain
 
@@ -181,15 +114,13 @@ def queryChain(chain,question):
     print("Found ",len(affineDocs), " affine docs")
         
     print("Q: ", question)
-    output=chain({"input_documents": affineDocs, "question": question}, return_only_outputs=True)
-    
+    output=chain({"input_documents": affineDocs, "question": question}, return_only_outputs=True)    
 
     print("A :",output)
     return output
 
 
 sessions={}
-#langchain.llm_cache = InMemoryCache()
 langchain.llm_cache = SQLiteCache(database_path=CONFIG["CACHE_PATH"]+"/langchain.db")
 
 def clearSessions():

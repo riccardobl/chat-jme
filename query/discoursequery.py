@@ -21,16 +21,13 @@ from embeddings import EmbeddingsManager
 from . import basequery
 import gc
 
-    
 
+# This contains several Ugly hacks to contain memory usage.
+# Needs a rewrite!
 class DiscourseQuery( basequery.BaseQuery):
     def __init__(self, config,url, apiKey=None, apiSecret=None):
         self.CONFIG = config
         self.url = url
-        # self.llm = OpenAI(temperature=0)
-        # self.text_splitter = CharacterTextSplitter()
-        # self.summaryChain= load_summarize_chain(self.llm, chain_type="stuff")
-
 
 
     def _createFragments(self,topicId,content,link):
@@ -40,7 +37,7 @@ class DiscourseQuery( basequery.BaseQuery):
 
         splitter = CharacterTextSplitter(
             separator="\n",
-            chunk_size=512,
+            chunk_size=600,
             chunk_overlap=0,
             length_function=len,
         )
@@ -55,14 +52,6 @@ class DiscourseQuery( basequery.BaseQuery):
                     v=EmbeddingsManager.new(doc,"cpu")
                     self._saveToCache(fragmentId,v,True)
             frags.append(v)
-            # frags.append({
-            #     "doc":doc,
-            #     "v":v
-            # })
-
-
-        
-        
         return frags
 
     def _summarize(self,content,url,sentences_count=4, withCodeBlocks=True):
@@ -85,13 +74,13 @@ class DiscourseQuery( basequery.BaseQuery):
                     text_summary+="<pre><code>"
                     text_summary+=codeBlock.text
                     text_summary+="</code></pre>"
-
+            gc.collect()
             return text_summary
         except Exception as e:
             print("Error summarizing",e)
             return ""
 
-    def _parseTopic(self,topicId):
+    def _parseTopic(self,topicId, j=5):
         discourseUrl=self.url
         url = f"{discourseUrl}/t/{topicId}.json"
 
@@ -124,7 +113,7 @@ class DiscourseQuery( basequery.BaseQuery):
             if content==None: 
                 data=getData()
                 print("Process",topicId)
-                content=""
+                content=[]
                 contentPart=""
                 isQuestion=True
                 isFirst=True
@@ -132,22 +121,23 @@ class DiscourseQuery( basequery.BaseQuery):
                 posts = data["post_stream"]["posts"]
                 def flush():
                     nonlocal contentPart
-                    nonlocal content
                     nonlocal isQuestion
                     nonlocal isFirst
                     if len(contentPart)==0: return
-                    contentPart=self._summarize(contentPart,f"{discourseUrl}/t/{topicId}",sentences_count=2 if isQuestion else 3,withCodeBlocks=not isQuestion)
+                    contentPart=self._summarize(contentPart,f"{discourseUrl}/t/{topicId}",sentences_count=2 if isQuestion else 2,withCodeBlocks=not isQuestion)
+                    c=""
                     if isQuestion:
-                        content+="\n\nQUESTION:\n"
+                        c+="\n\nQUESTION:\n"
                         if isFirst:
                             author=data["post_stream"]["posts"][0]["name"]
                             if author==None: author=data["post_stream"]["posts"][0]["username"]
-                            content+=data["title"]+"\n"+"Author: "+author+"\n"  
+                            c+=data["title"]+"\n"+"Author: "+author+"\n"  
                             isFirst=False
                     else:
-                        content+="\n\nANSWER:\n"                
-                    content+=contentPart
-                    contentPart=""                        
+                        c+="\n\nANSWER:\n"                
+                    c+=contentPart
+                    contentPart=""    
+                    content.append(c)                    
                 for post in posts:
                     postAuthorId=post["user_id"]
                     postText=post["cooked"]                
@@ -159,21 +149,15 @@ class DiscourseQuery( basequery.BaseQuery):
                         isQuestion=True     
                     contentPart+=postText+"\n"
                 flush()
+
+                content=content[:1]+content[-j:]
+                content="\n".join(content)
+
                 content = markdownify.markdownify(content, heading_style="ATX",autolinks=True,escape_asterisks=False,escape_underscores=False)
                 self._saveToCache(topicId,content,False)
             else:  
                 print("Get from cache",topicId)
             return self._createFragments(topicId, content,discourseUrl+"/t/"+str(topicId))
-        # texts = self.text_splitter.split_text(content)
-        # docs = [Document(page_content=t) for t in texts]
-        # content=self.summaryChain.run(docs)
-        # print(content)
-
-        #print("Create embeddings for",initialQuestion)
-
-        #print(v)
-        # create VectorStore
-        # initialQuestion
         return {
             "id":topicId,
             "frags":getContent,
@@ -219,27 +203,22 @@ class DiscourseQuery( basequery.BaseQuery):
         except Exception as e:
             print("Error saving to cache",isEmbedding,e)
  
-    def _search(self,question,limit=5,k=4,n=1):
-
+    def _search(self,question,limit=5,k=3,n=1,j=5):
         discourseUrl=self.url
-
         params = {
             "q": question+" in:first order:likes"
         }        
         response = requests.get(discourseUrl+"/search.json", params=params)
         if response.status_code != 200:
             raise Exception("Error searching discourse")
-
-        jsonData=response.json()
-        
+        jsonData=response.json()        
         topics=[]
         if not "topics" in jsonData: return []
         for topic in jsonData["topics"]:
             if len(topics)>=limit: break
             id=topic["id"]
-            topicData=self._parseTopic(id)
+            topicData=self._parseTopic(id,j)
             topics.append(topicData)
-
         cache={}
         for topic in topics:
             v=topic["v"]
@@ -250,10 +229,12 @@ class DiscourseQuery( basequery.BaseQuery):
                 if not score or rscore<score:
                     score=rscore
             topic["score"]=score
-            gc.collect()
-        
+            gc.collect()       
+                
         topics = sorted(topics, key=lambda x: x["score"], reverse=False)[:k]
+        print("1")
         gc.collect()
+
         fragments=[]
         for t in topics:
             fragments.extend(t["frags"]())            
