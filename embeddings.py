@@ -157,8 +157,8 @@ class EmbeddingsManager:
         if cache==None: 
             cache={}
         i=0
+        print("Searching",len(indices),"embeddings...")
         for index in indices:
-            print("Search",index)
             res=EmbeddingsManager.queryIndex(index,query, k=k, cache=cache),
             for res2 in res:
                 for rdoc in res2:
