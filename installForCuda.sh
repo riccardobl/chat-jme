@@ -11,7 +11,7 @@ conda install --yes cuda-toolkit=11.7  pytorch-cuda=11.7 -c pytorch -c nvidia  -
 cd /tmp
 
  
-pip uninstall faiss-cpu
+pip uninstall --yes faiss-cpu
 conda deactivate
 export CUDA_HOME=/usr/local/cuda-11
 export FAISS_ENABLE_GPU=ON
