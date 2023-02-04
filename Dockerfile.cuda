@@ -12,6 +12,7 @@ ENV JME_HUB_KNOWLEDGE_CUTOFF="2023-02-03"
 ENV JME_HUB_SEARCH_FILTER="in:first order:likes"
 ENV DEVICE="cuda"
 ENV USE_SUMY="false"
+ENV OPENAI_MODEL="text-davinci-003"
 
 
 ENV CONFIG_PATH="/app/config.json"
@@ -59,9 +60,13 @@ pip --verbose cache purge
 
 USER root
 RUN apt-get update && \
-apt-get install -y git  && \
+apt-get install -y git python3 python3-dev  && \
+apt-get upgrade -y &&\
 apt-get clean &&\
-rm -rf /var/lib/apt/lists/* 
+rm -rf /var/lib/apt/lists/*  &&\
+python --version &&\
+pip install numpy &&\
+python -c "import numpy; print(numpy.__version__)"
 
 USER nonroot
 

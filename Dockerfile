@@ -12,6 +12,7 @@ ENV JME_HUB_KNOWLEDGE_CUTOFF="2023-02-03"
 ENV JME_HUB_SEARCH_FILTER="in:first order:likes"
 ENV DEVICE="cpu"
 ENV USE_SUMY="true"
+ENV OPENAI_MODEL="text-davinci-003"
 
 
 ENV CONFIG_PATH="/app/config.json"
