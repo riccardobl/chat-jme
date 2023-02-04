@@ -213,7 +213,7 @@ class DiscourseQuery( basequery.BaseQuery):
         except Exception as e:
             print("Error saving to cache",isEmbedding,e)
  
-    def _search(self, searchTerms, question,searchLimit=1,maxTopicsToSelect=2,maxFragmentsToSelect=3,maxNumReplies=3, merge=True):
+    def _search(self, searchTerms, question,searchLimit=2,maxTopicsToSelect=2,maxFragmentsToReturn=3,maxNumReplies=3, merge=True):
         discourseUrl=self.url
 
 
@@ -263,13 +263,13 @@ class DiscourseQuery( basequery.BaseQuery):
         fragments=[]
         for t in topics:
             fragments.extend(t["frags"]())            
-        topics=EmbeddingsManager.query(fragments,question, k=maxFragmentsToSelect, cache=cache, group=EmbeddingsManager.GROUP_GPU)           
+        topics=EmbeddingsManager.query(fragments,question, k=3,n=1, cache=cache, group=EmbeddingsManager.GROUP_GPU)           
         if merge:
             print("Found",len(topics),"topics, Merge")        
             mergedTopic=""
             for t in topics:
                 mergedTopic+=t.page_content+"\n"
-            mergedTopic=Summary.summarizeHTML(mergedTopic,min_length=200,max_length=512,withCodeBlocks=True)
+            mergedTopic=Summary.summarizeHTML(mergedTopic,min_length=100,max_length=400,withCodeBlocks=True)
             print("Merged in ",len(mergedTopic),"chars")
             topics= [Document(page_content=mergedTopic, metadata={"source": f"{discourseUrl}/search", "hash":""})]
         return topics

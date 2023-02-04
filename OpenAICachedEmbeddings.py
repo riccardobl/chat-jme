@@ -16,7 +16,7 @@ from pydantic import BaseModel, Extra, root_validator
 from langchain.embeddings.base import Embeddings
 from langchain.utils import get_from_dict_or_env
 import hashlib
-import os,pickle
+import os,pickle,time
 class OpenAICachedEmbeddings(BaseModel, Embeddings):
     
 
@@ -86,6 +86,7 @@ class OpenAICachedEmbeddings(BaseModel, Embeddings):
     def _embedding_func(self, text: str, *, engine: str) -> List[float]:
         textHash=None
         cachedFile=None
+        embeddings=None
         if self.cachePath is not None:
             if not os.path.exists(self.cachePath):
                 os.makedirs(self.cachePath)
@@ -93,11 +94,18 @@ class OpenAICachedEmbeddings(BaseModel, Embeddings):
             cachedFile=os.path.join(self.cachePath, textHash+".bin")
             if os.path.exists(cachedFile):
                 with open(cachedFile, 'rb') as f:
-                    return  pickle.load(f)
-        embeddings=self._embedding_func2(text, engine=engine)
-        if cachedFile is not None: 
-            with open(cachedFile, 'wb') as f:      
-                pickle.dump(embeddings, f)
+                    embeddings =  pickle.load(f)
+
+        if embeddings is None:
+            embeddings=self._embedding_func2(text, engine=engine)
+            if cachedFile is not None: 
+                with open(cachedFile, 'wb') as f:      
+                    pickle.dump(embeddings, f)
+                
+                for f in os.listdir(self.cachePath):
+                    if f.endswith(".bin") and os.path.getmtime(os.path.join(self.cachePath, f)) < time.time() - 86400:
+                        os.remove(os.path.join(self.cachePath, f))
+        
         return embeddings
 
     def _embedding_func2(self, text: str, *, engine: str) -> List[float]:

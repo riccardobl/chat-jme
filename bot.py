@@ -101,12 +101,12 @@ FINAL ANSWER in Markdown: """
     )
 
 
-    memory=ConversationSummaryBufferMemory(llm=OpenAI(), max_token_limit=600,human_prefix="QUESTION",ai_prefix="ANSWER", memory_key="history", input_key="question")
+    memory=ConversationSummaryBufferMemory(llm=OpenAI(), max_token_limit=700,human_prefix="QUESTION",ai_prefix="ANSWER", memory_key="history", input_key="question")
     chain = load_qa_with_sources_chain(
         OpenAI(
             temperature=0.0,
             model_name="text-davinci-003",
-            max_tokens=2048,
+            max_tokens=1800,
         ), 
         memory=memory, 
         prompt=prompt, 
@@ -119,7 +119,6 @@ def queryCache(wordSalad,shortQuestion,cacheConf):
     for i in range(len(cacheConf)-1,-1,-1): 
         text=""
         l=cacheConf[i][0]
-        print(i,len(cacheConf))
         if i==(len(cacheConf)-1):
             text=shortQuestion
         else:
@@ -203,7 +202,9 @@ def queryChain(chain,question):
     wordSalad+=" "+question
         
     context=Summary.summarizeText(wordSalad,min_length=20,max_length=32)
-    keywords=Summary.getKeywords(Summary.summarizeText(wordSalad,min_length=10,max_length=20))
+    keywords=[]
+    keywords.extend(Summary.getKeywords(shortQuestion,2))
+    keywords.extend(Summary.getKeywords(Summary.summarizeText(wordSalad,min_length=10,max_length=20),3))
 
     affineDocs=getAffineDocs(question,context,keywords,shortQuestion,wordSalad)
     print("Found ",len(affineDocs), " affine docs")
@@ -225,7 +226,11 @@ def queryChain(chain,question):
             writeInCache(output)
     else: 
         print("Add cached output to history")
-        chain.memory.buffer.append( "\n" + "QUESTION: " + question+"\n"+"ANSWER: " + output["output_text"])
+        chain.memory.save_context(
+            {"question":question},
+            {"output_text":output["output_text"]},
+        )
+        #chain.memory.buffer.append( "\n" + "QUESTION: " + question+"\n"+"ANSWER: " + output["output_text"])
         
 
     print("A :",output)

@@ -169,7 +169,9 @@ async function query(question) {
         },
         body: body
     }).then(res => res.json());
-    if(answer.error) throw answer.error;
+    if(typeof answer.error!="undefined") {
+        throw answer.error||"Unknown error";
+    }
     console.log(answer);
     return answer["output_text"];
 }

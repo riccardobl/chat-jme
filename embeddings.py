@@ -211,7 +211,7 @@ class EmbeddingsManager:
             docs.append((doc, scores[0][j]))
         return docs
 
-    def query(indices, query, n=3, k=4,cache=None,group=0):
+    def query(indices, query, n=3, k=6,cache=None,group=0):
         results=[]
         if cache==None: 
             cache={}
