@@ -36,6 +36,7 @@ print("Use config file", confiFile)
 with open(confiFile, "r") as f:
     CONFIG=json.load(f)
     EmbeddingsManager.init(CONFIG)
+    Summary.init(CONFIG)
     QUERIERS=[
         EmbeddingsQuery(CONFIG),
         DiscourseQuery(
@@ -48,13 +49,15 @@ with open(confiFile, "r") as f:
 
 def getAffineDocs(question, wordSalad=None, unitFilter=None):
     affineDocs=[]
-    #longQuestion=Summary.summarizeComplex(wordSalad)
-    keyWords=Summary.getKeywords(wordSalad)
-    keyWordsString=" ".join(keyWords)
+
+    context=Summary.summarizeText(wordSalad,min_length=10,max_length=10)
+    keywords=Summary.getKeywords(context)
+
+
     for q in QUERIERS:
-        print("Get affine docs from",q,"using keywords",keyWordsString)
+        print("Get affine docs from",q,"using question",question,"with context",context,"and keywords",keywords)
         t=time.time()
-        v=q.getAffineDocs(keyWordsString, wordSalad, unitFilter)
+        v=q.getAffineDocs(question, context, keywords, wordSalad, unitFilter)
         print("Completed in",time.time()-t,"seconds.")
         if v!=None:
             affineDocs.extend(v)

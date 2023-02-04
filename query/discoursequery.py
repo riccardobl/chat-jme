@@ -83,7 +83,7 @@ class DiscourseQuery( basequery.BaseQuery):
     #         print("Error summarizing",e)
     #         return ""
 
-    def _parseTopic(self,topicId, j=5):
+    def _parseTopic(self,topicId, maxNumReplies=5):
         discourseUrl=self.url
         url = f"{discourseUrl}/t/{topicId}.json"
 
@@ -127,7 +127,12 @@ class DiscourseQuery( basequery.BaseQuery):
                     nonlocal isQuestion
                     nonlocal isFirst
                     if len(contentPart)==0: return
-                    contentPart=Summary.summarizeHTML(contentPart,f"{discourseUrl}/t/{topicId}",sentences_count=2 if isQuestion else 2,withCodeBlocks=not isQuestion)
+                    minLen=20
+                    maxLen=200
+                    if isQuestion:
+                        minLen=100
+                        maxLen=1000
+                    contentPart=Summary.summarizeHTML(contentPart,f"{discourseUrl}/t/{topicId}",max_length=maxLen,min_length=minLen,withCodeBlocks=not isQuestion)
                     c=""
                     if isQuestion:
                         c+="\n\nQUESTION:\n"
@@ -153,7 +158,8 @@ class DiscourseQuery( basequery.BaseQuery):
                     contentPart+=postText+"\n"
                 flush()
 
-                content=content[:1]+content[-j:]
+                if len(content)>maxNumReplies:
+                    content=content[:1]+content[-maxNumReplies:]
                 content="\n".join(content)
 
                 content = markdownify.markdownify(content, heading_style="ATX",autolinks=True,escape_asterisks=False,escape_underscores=False)
@@ -206,24 +212,33 @@ class DiscourseQuery( basequery.BaseQuery):
         except Exception as e:
             print("Error saving to cache",isEmbedding,e)
  
-    def _search(self,question,limit=5,k=3,n=3,j=5, merge=True):
+    def _search(self, searchTerms, question,searchLimit=2,maxTopicsToSelect=3,maxFragmentsToSelect=3,maxNumReplies=5, merge=True):
         discourseUrl=self.url
-        params = {
-            "q": question+" "+self.searchFilter+" before:"+self.knowledgeCutoff
-        }        
-        print("searching",discourseUrl, params)
-        response = requests.get(discourseUrl+"/search.json", params=params)
-        if response.status_code != 200:
-            print("Error searching discourse")
-            raise Exception("Error searching discourse")
-        jsonData=response.json()        
+
+
+        # Search
         topics=[]
-        if not "topics" in jsonData: return []
-        for topic in jsonData["topics"]:
-            if len(topics)>=limit: break
-            id=topic["id"]
-            topicData=self._parseTopic(id,j)
-            topics.append(topicData)
+        for term in searchTerms:
+            termTopics=[]
+            params = {
+                "q": term+" "+self.searchFilter+" before:"+self.knowledgeCutoff
+            }        
+            print("searching",discourseUrl, params)
+            response = requests.get(discourseUrl+"/search.json", params=params)
+            if response.status_code != 200:
+                print("Error searching discourse")
+                raise Exception("Error searching discourse")
+
+            jsonData=response.json()        
+            if not "topics" in jsonData: return []
+            for topic in jsonData["topics"]:
+                if len(termTopics)>=searchLimit: break
+                id=topic["id"]
+                topicData=self._parseTopic(id,maxNumReplies)
+                termTopics.append(topicData)
+            topics.extend(termTopics)
+
+
         cache={}
         for topic in topics:
             v=topic["v"]
@@ -236,23 +251,27 @@ class DiscourseQuery( basequery.BaseQuery):
             topic["score"]=score
             gc.collect()       
                 
-        topics = sorted(topics, key=lambda x: x["score"], reverse=False)[:k]
+        topics = sorted(topics, key=lambda x: x["score"], reverse=False)[:maxTopicsToSelect]
         gc.collect()
 
         fragments=[]
         for t in topics:
             fragments.extend(t["frags"]())            
-        topics=EmbeddingsManager.query(fragments,question, k=n, cache=cache, group=EmbeddingsManager.GROUP_GPU)           
+        topics=EmbeddingsManager.query(fragments,question, k=maxFragmentsToSelect, cache=cache, group=EmbeddingsManager.GROUP_GPU)           
         if merge:
             print("Found",len(topics),"topics, Merge")        
             mergedTopic=""
             for t in topics:
                 mergedTopic+=t.page_content+"\n"
-            mergedTopic=Summary.summarizeComplex(mergedTopic)
+            mergedTopic=Summary.summarizeHTML(mergedTopic,min_length=100,max_length=512,withCodeBlocks=True)
             print("Merged in ",len(mergedTopic),"chars")
             topics= [Document(page_content=mergedTopic, metadata={"source": f"{discourseUrl}/search?q="+urllib.parse.quote(params["q"]), "hash":""})]
         return topics
 
-    def getAffineDocs(self, question, wordSalad=None, unitFilter=None):
-        return self._search(question)        
+    def getAffineDocs(self, question, context, keywords,  wordSalad=None, unitFilter=None):
+        seachTerms=[]
+        seachTerms.append(question)
+        seachTerms.extend(keywords)
+        seachTerms=seachTerms[:4]
+        return self._search(seachTerms,question)        
 

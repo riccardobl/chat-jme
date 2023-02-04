@@ -225,20 +225,24 @@ class EmbeddingsManager:
             cache={}
         i=0
         print("Searching",len(indices),"embeddings...")
-        for index in indices:
-            res=EmbeddingsManager.queryIndex(index,query, k=k, cache=cache,group=group),
-            for res2 in res:
-                for rdoc in res2:
-                    score=rdoc[1]
-                    results.append({
-                        "doc": rdoc[0],
-                        "score": score
-                    })       
-      
-            i+=1
-            if i>=100:
-                i=0
-                gc.collect() 
+        # if query is array
+        if not isinstance(query, list):
+            query=[query]
+        for q in query:
+            for index in indices:
+                res=EmbeddingsManager.queryIndex(index,q, k=k, cache=cache,group=group),
+                for res2 in res:
+                    for rdoc in res2:
+                        score=rdoc[1]
+                        results.append({
+                            "doc": rdoc[0],
+                            "score": score
+                        })       
+        
+                i+=1
+                if i>=100:
+                    i=0
+                    gc.collect() 
         best= sorted(results, key=lambda x: x["score"], reverse=False)[:n]
         #best[::-1]   
         
