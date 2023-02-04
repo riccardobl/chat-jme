@@ -18,7 +18,11 @@ class TorchEmbeddings( Embeddings):
 
     models={}
     def __init__(self, device):
-        self.torch_device='cuda' if (device=="cuda" or device=="gpu") and torch.cuda.is_available() else 'cpu'
+        isGpuDevice=device=="cuda" or device=="gpu"
+        if isGpuDevice and  not torch.cuda.is_available():
+            print("WARNING: GPU device requested but not available")
+
+        self.torch_device='cuda' if isGpuDevice and torch.cuda.is_available() else 'cpu'
         if not self.torch_device in TorchEmbeddings.models:
             TorchEmbeddings.models[self.torch_device]=SentenceTransformer('sentence-transformers/paraphrase-MiniLM-L6-v2',device=self.torch_device)    
         self.model=TorchEmbeddings.models[self.torch_device]
@@ -35,7 +39,7 @@ class TorchEmbeddings( Embeddings):
         if useCache and text in cache  :
             return cache[text]
         else:
-            embeddings = self.model.encode([text],device=self.torch_device)
+            embeddings = self.model.encode([text],device=self.torch_device,show_progress_bar=True)
             embeddings=embeddings.copy().astype(np.float32)
             embeddings = embeddings[0]
             if useCache : cache[text]=embeddings

@@ -52,7 +52,7 @@ class DiscourseQuery( basequery.BaseQuery):
             v=self._loadFromCache(fragmentId,True)
             if v==None:
                 if not v:
-                    v=EmbeddingsManager.new(doc,"cpu")
+                    v=EmbeddingsManager.new(doc,self.CONFIG["DEVICE"])
                     self._saveToCache(fragmentId,v,True)
             frags.append(v)
         return frags
@@ -105,7 +105,7 @@ class DiscourseQuery( basequery.BaseQuery):
                 print("Get initial question of",topicId)
                 data=getData()
                 initialQuestion=data["title"]+"\n"+data["post_stream"]["posts"][0]["cooked"]
-                v=EmbeddingsManager.new(Document(page_content=initialQuestion),"cpu")
+                v=EmbeddingsManager.new(Document(page_content=initialQuestion),self.CONFIG["DEVICE"])
                 self._saveToCache(topicId,v,True)
             else:
                 print("Get initial question from cache",topicId)
@@ -181,7 +181,7 @@ class DiscourseQuery( basequery.BaseQuery):
             if isEmbedding :
                 f=os.path.join(cachePath,"question.bin")
                 if os.path.exists(f):
-                    v=EmbeddingsManager.read(f)
+                    v=EmbeddingsManager.read(f,group=-1)
                     return v 
             else:
                 f=os.path.join(cachePath,"content.txt")
@@ -227,7 +227,7 @@ class DiscourseQuery( basequery.BaseQuery):
         cache={}
         for topic in topics:
             v=topic["v"]
-            res=EmbeddingsManager.queryIndex(v(),question, k=1, cache=cache)
+            res=EmbeddingsManager.queryIndex(v(),question, k=1, cache=cache, group=-1)
             score=None
             for rdoc in res:
                 rscore=rdoc[1]
@@ -242,7 +242,7 @@ class DiscourseQuery( basequery.BaseQuery):
         fragments=[]
         for t in topics:
             fragments.extend(t["frags"]())            
-        topics=EmbeddingsManager.query(fragments,question, k=n, cache=cache)           
+        topics=EmbeddingsManager.query(fragments,question, k=n, cache=cache, group=-1)           
         if merge:
             print("Found",len(topics),"topics, Merge")        
             mergedTopic=""

@@ -10,7 +10,50 @@ from TorchEmbeddings import TorchEmbeddings
 import utils
 import gc
 from OpenAICachedEmbeddings import OpenAICachedEmbeddings
+import faiss
+import copy
 class EmbeddingsManager:
+    CONFIG=None
+    LOAD_CACHE=None
+    GPU_CACHE=None
+    GPU_RESOURCES=None
+    
+
+    @staticmethod
+    def init(CONFIG):
+        EmbeddingsManager.CONFIG=CONFIG
+        EmbeddingsManager.preload()
+        EmbeddingsManager.LOAD_CACHE=None
+        if not EmbeddingsManager.CONFIG.get("CACHE_EMBEDDINGS",False):
+            EmbeddingsManager.LOAD_CACHE={}
+        EmbeddingsManager.GPU_CACHE={}
+        EmbeddingsManager.GPU_RESOURCES=None
+        useGpu=EmbeddingsManager.CONFIG["DEVICE"]=="cuda" or EmbeddingsManager.CONFIG["DEVICE"]=="gpu"
+        if useGpu:
+            EmbeddingsManager.GPU_RESOURCES=faiss.StandardGpuResources()
+
+    @staticmethod
+    def _toDevice(f,group=0):
+        if EmbeddingsManager.GPU_RESOURCES==None or group<0:
+            return f
+        else:
+            if not group in EmbeddingsManager.GPU_CACHE:
+                EmbeddingsManager.GPU_CACHE[group]={}
+            cache=EmbeddingsManager.GPU_CACHE[group]
+            if hash(f) in cache:
+                return cache[hash(f)]
+            else:
+                gpuIndex=copy.copy(f)
+                internalIndex=gpuIndex.index
+                internalIndexToGpu=faiss.index_cpu_to_gpu(EmbeddingsManager.GPU_RESOURCES,0,internalIndex)
+                gpuIndex.index=internalIndexToGpu
+                #gpuIndex=faiss.index_cpu_to_gpu(EmbeddingsManager.GPU_RESOURCES,0,f)
+                if group!=1:
+                    cache[hash(f)]=gpuIndex
+                return gpuIndex
+
+
+
 
     @staticmethod
     def preload():
@@ -18,7 +61,7 @@ class EmbeddingsManager:
    
     @staticmethod
     def new(doc,backend="openai"):
-        if backend=="cpu" or backend=="gpu":
+        if backend=="cpu" or backend=="gpu" or backend=="cuda":
             return EmbeddingsManager._newTorch(doc,backend)
         else: # backend==openai
             return EmbeddingsManager._newOpenAI(doc)
@@ -104,15 +147,20 @@ class EmbeddingsManager:
             pickle.dump(embed, f)
 
     @staticmethod
-    def read(path):
+    def read(path, group=0):
+        if EmbeddingsManager.LOAD_CACHE!=None:
+            if path in EmbeddingsManager.LOAD_CACHE:
+                return EmbeddingsManager.LOAD_CACHE[path]
         with open(path, 'rb') as f:
             out = pickle.load(f)
+            if group>=0 and group!=1 and EmbeddingsManager.LOAD_CACHE!=None:
+                EmbeddingsManager.LOAD_CACHE[path]=out
             if out==None:
                 raise Exception("Error loading index")
             return out
 
     @staticmethod
-    def queryIndex(index,query,k=4, cache=None):
+    def queryIndex(index,query,k=4, cache=None, group=0):
         embedding=None
         if cache!=None and query in cache:
             embedding=cache[query]
@@ -141,8 +189,8 @@ class EmbeddingsManager:
         #     embedding=EmbeddingsManager.embedding_function(index, query)
         #     cache[query]=embedding
         
-       
-        scores, indices = index.index.search(np.array([embedding], dtype=np.float32), k)
+        index=EmbeddingsManager._toDevice(index,group)
+        scores, indices = index.index.search(np.array([embedding], dtype=np.float32), k=k)
         docs = []
         for j, i in enumerate(indices[0]):
             if i == -1:
@@ -155,14 +203,14 @@ class EmbeddingsManager:
             docs.append((doc, scores[0][j]))
         return docs
 
-    def query(indices, query, n=3, k=4,cache=None):
+    def query(indices, query, n=3, k=4,cache=None,group=0):
         results=[]
         if cache==None: 
             cache={}
         i=0
         print("Searching",len(indices),"embeddings...")
         for index in indices:
-            res=EmbeddingsManager.queryIndex(index,query, k=k, cache=cache),
+            res=EmbeddingsManager.queryIndex(index,query, k=k, cache=cache,group=group),
             for res2 in res:
                 for rdoc in res2:
                     score=rdoc[1]

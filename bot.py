@@ -35,7 +35,7 @@ confiFile=args[1] if len(args)>1 else "config.json"
 print("Use config file", confiFile)
 with open(confiFile, "r") as f:
     CONFIG=json.load(f)
-    EmbeddingsManager.preload()
+    EmbeddingsManager.init(CONFIG)
     QUERIERS=[
         EmbeddingsQuery(CONFIG),
         DiscourseQuery(
@@ -53,7 +53,9 @@ def getAffineDocs(question, wordSalad=None, unitFilter=None):
     keyWordsString=" ".join(keyWords)
     for q in QUERIERS:
         print("Get affine docs from",q,"using keywords",keyWordsString)
+        t=time.time()
         v=q.getAffineDocs(keyWordsString, wordSalad, unitFilter)
+        print("Completed in",time.time()-t,"seconds.")
         if v!=None:
             affineDocs.extend(v)
     return affineDocs
