@@ -27,10 +27,12 @@ class Summary:
     def init(CONFIG):
         Summary.useGPU=CONFIG.get("DEVICE","cpu")=="gpu" or CONFIG.get("DEVICE","cpu")=="cuda"
         Summary.CONFIG=CONFIG
-        if Summary.summarizer==None:
-            print("Preloading flan-t5-base-samsum")
-            Summary.summarizer = pipeline("summarization", model='philschmid/flan-t5-base-samsum', device=0 if Summary.useGPU else -1)
-            print("Done")
+        Summary.useSumy=CONFIG.get("USE_SUMY",False)
+        if not Summary.useSumy:
+            if Summary.summarizer==None:
+                print("Preloading flan-t5-base-samsum")
+                Summary.summarizer = pipeline("summarization", model='philschmid/flan-t5-base-samsum', device=0 if Summary.useGPU else -1)
+                print("Done")
 
         # if Summary.qa==None:
         #     Summary.qa = pipeline("question-answering", model='distilbert-base-cased-distilled-squad')
@@ -82,31 +84,33 @@ class Summary:
         content = markdownify.markdownify(content, heading_style="ATX",autolinks=True,escape_asterisks=False,escape_underscores=False)
 
     @staticmethod
-    def summarizeText(content,min_length=10,max_length=100):
-        contentLen=len(content)
-        if contentLen<min_length:
-            return content
-        if max_length>contentLen:
-            max_length=contentLen
-        
-        res=Summary.summarizer(content,min_length=min_length,max_length=max_length)
-        return res[0]["summary_text"]
-        # try:
-        #     LANGUAGE="english"
-        #     SENTENCES_COUNT = sentences_count
-        #     stemmer = Stemmer(LANGUAGE)
-        #     summarizer = Summarizer(stemmer)
-        #     summarizer.stop_words = get_stop_words(LANGUAGE)
-        #     parser = PlaintextParser.from_string(content, Tokenizer(LANGUAGE))
-        #     text_summary=""
-        #     for sentence in summarizer(parser.document, SENTENCES_COUNT):
-        #         text_summary+=str(sentence)
-        #     gc.collect()
-        #     return text_summary
-        # except Exception as e:
-        #     print("Error summarizing",e)
-        #     gc.collect()
-        #     return ""
+    def summarizeText(content,min_length=10,max_length=100):       
+        if Summary.useSumy:
+            try:
+                LANGUAGE="english"
+                SENTENCES_COUNT = max_length
+                stemmer = Stemmer(LANGUAGE)
+                summarizer = Summarizer(stemmer)
+                summarizer.stop_words = get_stop_words(LANGUAGE)
+                parser = PlaintextParser.from_string(content, Tokenizer(LANGUAGE))
+                text_summary=""
+                for sentence in summarizer(parser.document, SENTENCES_COUNT):
+                    text_summary+=str(sentence)
+                gc.collect()
+                return text_summary
+            except Exception as e:
+                print("Error summarizing",e)
+                gc.collect()
+                return ""
+        else:
+            contentLen=len(content)
+            if contentLen<min_length:
+                return content
+            if max_length>contentLen:
+                max_length=contentLen
+            
+            res=Summary.summarizer(content,min_length=min_length,max_length=max_length)
+            return res[0]["summary_text"]
 
     @staticmethod
     def summarizeHTML(content,url="",min_length=10,max_length=100, withCodeBlocks=True):
