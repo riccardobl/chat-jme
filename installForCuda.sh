@@ -1,7 +1,8 @@
 set -e
 
 cdir="$PWD"
-
+eval "$($CONDA_DIR/bin/conda shell.bash hook)"
+conda init bash 
 conda activate jmebot
 # Install cuda deps
 conda install --yes cuda-toolkit=11.7  pytorch-cuda=11.7 -c pytorch -c nvidia  -c "nvidia/label/cuda-11.7.0" 

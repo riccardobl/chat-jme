@@ -29,5 +29,27 @@ jobs:
           docker push docker.pkg.github.com/${{ github.repository }}/chat-jme:${VERSION}
 
         
+    BuildContainerCUDA:
+      runs-on: ubuntu-latest
+      permissions:
+        contents: read
+        packages: write
+      steps:  
+      - uses: actions/checkout@v2 
+
+      - name: Build and push to registry
+        run: |
+          VERSION="snapshot"
+          if [[ $GITHUB_REF == refs/tags/* ]]; then
+            VERSION=${GITHUB_REF#refs/tags/}
+          fi
+          echo ${{ secrets.GITHUB_TOKEN }} | docker login docker.pkg.github.com -u ${{ github.actor }} --password-stdin
+          docker build -t chat-jme:cuda-$VERSION . -f docker/Dockerfile
+          docker tag chat-jme:cuda-$VERSION docker.pkg.github.com/${{ github.repository }}/chat-jme:cuda-${VERSION}
+          docker push docker.pkg.github.com/${{ github.repository }}/chat-jme:cuda-${VERSION}
+
         
+        
+      
+  
       
