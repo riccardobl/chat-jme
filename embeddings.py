@@ -11,6 +11,7 @@ import utils
 import gc
 from OpenAICachedEmbeddings import OpenAICachedEmbeddings
 import faiss
+import hashlib
 import copy
 
 # Group 0 = cache and gpu
@@ -63,7 +64,6 @@ class EmbeddingsManager:
                 internalIndex=gpuIndex.index
                 internalIndexToGpu=faiss.index_cpu_to_gpu(EmbeddingsManager.GPU_RESOURCES,0,internalIndex)
                 gpuIndex.index=internalIndexToGpu
-                #gpuIndex=faiss.index_cpu_to_gpu(EmbeddingsManager.GPU_RESOURCES,0,f)
                 if EmbeddingsManager._withCache(group):
                     cache[hash(f)]=gpuIndex
                 return gpuIndex
@@ -77,6 +77,11 @@ class EmbeddingsManager:
    
     @staticmethod
     def new(doc,backend="openai"):
+        
+        if isinstance(doc, str):
+            metadata={"source": "", "hash": hashlib.sha256(doc.encode('utf-8')).hexdigest()}
+            doc=Document(page_content=doc, metadata=metadata)
+
         if backend=="cpu" or backend=="gpu" or backend=="cuda":
             return EmbeddingsManager._newTorch(doc,backend)
         else: # backend==openai
@@ -96,6 +101,9 @@ class EmbeddingsManager:
         try:
             l=40
             source_chunks = [source_chunks[i:i + l] for i in range(0, len(source_chunks), l)]
+            if len(source_chunks)==0:
+                source_chunks.append(Document(page_content="", metadata=doc.metadata))          
+
             print("Processing", len(source_chunks),"chunks")               
             print("Create index with",len(source_chunks[0]),"tokens")
             faiss=FAISS.from_documents(source_chunks[0], TorchEmbeddings(backend))
@@ -178,32 +186,16 @@ class EmbeddingsManager:
     @staticmethod
     def queryIndex(index,query,k=4, cache=None, group=0):
         embedding=None
-        if cache!=None and query in cache:
-            embedding=cache[query]
+
+        if isinstance(query, str):
+            if cache!=None and query in cache:
+                embedding=cache[query]
+            else:
+                embedding =  EmbeddingsManager.embedding_function(index, query)
+                if cache!=None:
+                    cache[query]=embedding
         else:
-            embedding =  EmbeddingsManager.embedding_function(index, query)
-            if cache!=None:
-                cache[query]=embedding
-        # embedding=None
-
-        # print(index.embedding_function.__class__.__name__)
-        # backend=hash(index.embedding_function)
-        
-        # if not backend in EmbeddingsManager.cache:
-        #     EmbeddingsManager.cache[backend]={}
-        
-        # cache=EmbeddingsManager.cache[backend]
-        # # prevent cache from growing too big
-        # if len(cache)>1000:
-        #     cache={}
-
-        # if query in cache :
-        #     print("Cached")
-        #     embedding=cache[query]
-        # else:
-        #     #embedding=index.embedding_function(query)
-        #     embedding=EmbeddingsManager.embedding_function(index, query)
-        #     cache[query]=embedding
+            embedding=query
         
         index=EmbeddingsManager._toDevice(index,group)
         scores, indices = index.index.search(np.array([embedding], dtype=np.float32), k=k)
