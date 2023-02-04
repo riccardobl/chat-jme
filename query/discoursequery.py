@@ -213,7 +213,7 @@ class DiscourseQuery( basequery.BaseQuery):
         except Exception as e:
             print("Error saving to cache",isEmbedding,e)
  
-    def _search(self, searchTerms, question,searchLimit=1,maxTopicsToSelect=3,maxFragmentsToSelect=3,maxNumReplies=5, merge=True):
+    def _search(self, searchTerms, question,searchLimit=1,maxTopicsToSelect=2,maxFragmentsToSelect=3,maxNumReplies=3, merge=True):
         discourseUrl=self.url
 
 
@@ -274,7 +274,7 @@ class DiscourseQuery( basequery.BaseQuery):
             topics= [Document(page_content=mergedTopic, metadata={"source": f"{discourseUrl}/search", "hash":""})]
         return topics
 
-    def getAffineDocs(self, question, shortQuestion, context, keywords,  wordSalad=None, unitFilter=None):
+    def getAffineDocs(self, question, context, keywords, shortQuestion,  wordSalad=None, unitFilter=None):
         seachTerms=[]
         #seachTerms.append(question)
         seachTerms.extend(keywords)

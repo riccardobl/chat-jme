@@ -38,6 +38,6 @@ class EmbeddingsQuery(basequery.BaseQuery):
         return  loaded_parts
     
 
-    def getAffineDocs(self, question, shortQuestion, context, keywords,  wordSalad=None, unitFilter=None):
+    def getAffineDocs(self, question, context, keywords, shortQuestion,  wordSalad=None, unitFilter=None):
         indices = self._getIndices(wordSalad, unitFilter)
         return EmbeddingsManager.query(indices,[question,context],group=EmbeddingsManager.GROUP_GPU_CACHE)        

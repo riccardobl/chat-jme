@@ -1,5 +1,5 @@
 from abc import ABC, abstractmethod
 class BaseQuery(ABC):
     @abstractmethod
-    def getAffineDocs(self, question, shortQuestion, context, keywords, wordSalad=None, unitFilter=None):
+    def getAffineDocs(self, question, context, keywords, shortQuestion, wordSalad=None, unitFilter=None):
         pass

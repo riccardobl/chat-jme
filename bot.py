@@ -26,7 +26,7 @@ import sys
 from query.discoursequery import DiscourseQuery
 from query.embeddingsquery import EmbeddingsQuery
 from Summary import Summary
-
+import uuid
 CONFIG=None
 QUERIERS=[]
 
@@ -47,16 +47,14 @@ with open(confiFile, "r") as f:
     ]
     Translator.init(CONFIG)
 
-def getAffineDocs(question,shortQuestion, wordSalad=None, unitFilter=None):
+def getAffineDocs(question,context,keywords,shortQuestion, wordSalad=None, unitFilter=None):
     affineDocs=[]
 
-    context=Summary.summarizeText(wordSalad,min_length=20,max_length=32)
-    keywords=Summary.getKeywords(Summary.summarizeText(wordSalad,min_length=10,max_length=20))
-
+   
     for q in QUERIERS:
         print("Get affine docs from",q,"using question",question,"with context",context,"and keywords",keywords)
         t=time.time()
-        v=q.getAffineDocs(question, shortQuestion, context, keywords, wordSalad, unitFilter)
+        v=q.getAffineDocs(question, context, keywords,shortQuestion, wordSalad, unitFilter)
         print("Completed in",time.time()-t,"seconds.")
         if v!=None:
             affineDocs.extend(v)
@@ -116,6 +114,82 @@ FINAL ANSWER in Markdown: """
     )
     return chain
 
+def queryCache(wordSalad,shortQuestion,cacheConf):    
+    levels=[None]*len(cacheConf)
+    for i in range(len(cacheConf)-1,-1,-1): 
+        text=""
+        if i==len(cacheConf)-1:
+            text=shortQuestion
+        else:
+            nextI=i+1
+            text=wordSalad+" "+shortQuestion if nextI==len(cacheConf)-2 else levels[i+1][2]
+            text=Summary.summarizeText(text,min_length=l,max_length=l)
+        l=cacheConf[i][0]
+        embedding=EmbeddingsManager.new(text,"gpu")
+        levels[i]=(embedding,cacheConf[i][1],text,EmbeddingsManager.embedding_function(embedding, text))
+    
+    cachePath=os.path.join(CONFIG["CACHE_PATH"],"smartcache")  
+    if not os.path.exists(cachePath):
+        os.makedirs(cachePath)
+    for i in range(0,len(levels)):
+        l=levels[i]
+        isLast=i==len(levels)-1
+        foundSub=False
+        for f in os.listdir(cachePath):
+            if not f.endswith(".bin"): continue
+            embeddingPath=os.path.join(cachePath,f)
+            answerPath=embeddingPath.replace(".bin",".json")
+            subPath=embeddingPath.replace(".bin","")
+
+            embedding=EmbeddingsManager.read(embeddingPath,group=EmbeddingsManager.GROUP_GPU)
+            res=EmbeddingsManager.queryIndex(embedding,l[3],k=1,group=EmbeddingsManager.GROUP_GPU)
+            score=res[0][1]
+            print("Score:",score,"level score",l[1])
+            if score<l[1]:
+                print("Found in cache",l[2])
+                if isLast:
+                    print("Return from cache")
+                    if os.path.exists(answerPath):                 
+                        with open(answerPath, "r") as f:
+                            answer=json.load(f)
+                            return {
+                                "answer":answer,
+                                "writeAnswer":lambda x: None                          
+                            }
+                else:
+                    print("Go deeper")
+                    cachePath=subPath
+                    foundSub=True
+                    break
+        if not foundSub:
+            f=uuid.uuid4().hex+".bin"
+            embeddingPath=os.path.join(cachePath,f)
+            answerPath=embeddingPath.replace(".bin",".json")
+            subPath=embeddingPath.replace(".bin","")
+            if isLast:
+                print("Not in cache!")
+                def writeAnswer(answer):
+                    print("Add answer to smart cache")
+                    EmbeddingsManager.write(embeddingPath,l[0])
+                    with open(answerPath, "w") as f:
+                        json.dump(answer, f)
+                return {
+                    "answer":None,
+                    "writeAnswer":writeAnswer
+                }
+            else:
+                print("Create deeper level")
+                os.mkdir(subPath)
+                cachePath=subPath
+                EmbeddingsManager.write(embeddingPath,l[0])
+
+                
+
+            
+
+
+
+
 
 def queryChain(chain,question):
     shortQuestion=question
@@ -127,12 +201,29 @@ def queryChain(chain,question):
     for h in chain.memory.buffer: wordSalad+=h+" "
     wordSalad+=" "+question
         
-    affineDocs=getAffineDocs(question,shortQuestion,wordSalad)
+    context=Summary.summarizeText(wordSalad,min_length=20,max_length=32)
+    keywords=Summary.getKeywords(Summary.summarizeText(wordSalad,min_length=10,max_length=20))
+
+    affineDocs=getAffineDocs(question,context,keywords,shortQuestion,wordSalad)
     print("Found ",len(affineDocs), " affine docs")
         
     
     print("Q: ", shortQuestion)
-    output=chain({"input_documents": affineDocs, "question": shortQuestion}, return_only_outputs=True)    
+
+    output=None
+    writeInCache=None
+    if CONFIG.get("SMART_CACHE",None)!=None:
+        cacheOutput=queryCache(wordSalad,shortQuestion,CONFIG.get("SMART_CACHE",None))
+        if cacheOutput["answer"]!=None:
+            output=cacheOutput["answer"]
+        writeInCache=cacheOutput["writeAnswer"]
+
+    if not output:
+        output=chain({"input_documents": affineDocs, "question": shortQuestion}, return_only_outputs=True)    
+        if writeInCache!=None:
+            writeInCache(output)
+    else: 
+        chain.memory.buffer+=output
 
     print("A :",output)
     return output
