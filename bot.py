@@ -47,17 +47,16 @@ with open(confiFile, "r") as f:
     ]
     Translator.init(CONFIG)
 
-def getAffineDocs(question, wordSalad=None, unitFilter=None):
+def getAffineDocs(question,shortQuestion, wordSalad=None, unitFilter=None):
     affineDocs=[]
 
-    context=Summary.summarizeText(wordSalad,min_length=10,max_length=10)
-    keywords=Summary.getKeywords(context)
-
+    context=Summary.summarizeText(wordSalad,min_length=20,max_length=32)
+    keywords=Summary.getKeywords(Summary.summarizeText(wordSalad,min_length=10,max_length=20))
 
     for q in QUERIERS:
         print("Get affine docs from",q,"using question",question,"with context",context,"and keywords",keywords)
         t=time.time()
-        v=q.getAffineDocs(question, context, keywords, wordSalad, unitFilter)
+        v=q.getAffineDocs(question, shortQuestion, context, keywords, wordSalad, unitFilter)
         print("Completed in",time.time()-t,"seconds.")
         if v!=None:
             affineDocs.extend(v)
@@ -119,15 +118,21 @@ FINAL ANSWER in Markdown: """
 
 
 def queryChain(chain,question):
+    shortQuestion=question
+    
+    if len(shortQuestion)>1024:
+        shortQuestion=Summary.summarizeMarkdown(question,min_length=100,max_length=1024,withCodeBlocks=False)
+
     wordSalad=""
     for h in chain.memory.buffer: wordSalad+=h+" "
     wordSalad+=" "+question
         
-    affineDocs=getAffineDocs(question,wordSalad)
+    affineDocs=getAffineDocs(question,shortQuestion,wordSalad)
     print("Found ",len(affineDocs), " affine docs")
         
-    print("Q: ", question)
-    output=chain({"input_documents": affineDocs, "question": question}, return_only_outputs=True)    
+    
+    print("Q: ", shortQuestion)
+    output=chain({"input_documents": affineDocs, "question": shortQuestion}, return_only_outputs=True)    
 
     print("A :",output)
     return output

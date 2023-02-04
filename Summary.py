@@ -16,7 +16,8 @@ from langchain.docstore.document import Document
 from langchain.chains.summarize import load_summarize_chain
 import yake
 from transformers import pipeline
-import urllib
+
+from urllib.parse import urljoin
 class Summary:
     #summaryChain=None
     #textSplitter=None
@@ -89,7 +90,6 @@ class Summary:
             max_length=contentLen
         
         res=Summary.summarizer(content,min_length=min_length,max_length=max_length)
-        print(res)
         return res[0]["summary_text"]
         # try:
         #     LANGUAGE="english"
@@ -128,8 +128,8 @@ class Summary:
             soup = BeautifulSoup(content, 'html.parser')
             for link in soup.find_all('a'):
                 href = link.get('href')
-                url = urllib.urljoin(url, href)
-                link.string += url
+                url = urljoin(url, href)
+                link.string = url
 
             # Extract code blocks
             codeBlocks=""

@@ -21,6 +21,7 @@ from embeddings import EmbeddingsManager
 from . import basequery
 import gc
 import urllib
+import utils
 from Summary import Summary
 
 # This contains several Ugly hacks to contain memory usage.
@@ -127,11 +128,11 @@ class DiscourseQuery( basequery.BaseQuery):
                     nonlocal isQuestion
                     nonlocal isFirst
                     if len(contentPart)==0: return
-                    minLen=20
-                    maxLen=200
+                    minLen=100
+                    maxLen=300
                     if isQuestion:
                         minLen=100
-                        maxLen=1000
+                        maxLen=500
                     contentPart=Summary.summarizeHTML(contentPart,f"{discourseUrl}/t/{topicId}",max_length=maxLen,min_length=minLen,withCodeBlocks=not isQuestion)
                     c=""
                     if isQuestion:
@@ -212,7 +213,7 @@ class DiscourseQuery( basequery.BaseQuery):
         except Exception as e:
             print("Error saving to cache",isEmbedding,e)
  
-    def _search(self, searchTerms, question,searchLimit=2,maxTopicsToSelect=3,maxFragmentsToSelect=3,maxNumReplies=5, merge=True):
+    def _search(self, searchTerms, question,searchLimit=1,maxTopicsToSelect=3,maxFragmentsToSelect=3,maxNumReplies=5, merge=True):
         discourseUrl=self.url
 
 
@@ -220,24 +221,29 @@ class DiscourseQuery( basequery.BaseQuery):
         topics=[]
         for term in searchTerms:
             termTopics=[]
-            params = {
-                "q": term+" "+self.searchFilter+" before:"+self.knowledgeCutoff
-            }        
-            print("searching",discourseUrl, params)
-            response = requests.get(discourseUrl+"/search.json", params=params)
-            if response.status_code != 200:
-                print("Error searching discourse")
-                raise Exception("Error searching discourse")
+            def search():    
+                params = {
+                    "q": term+" "+self.searchFilter+" before:"+self.knowledgeCutoff
+                }        
+                print("searching",discourseUrl, params)
+                response = requests.get(discourseUrl+"/search.json", params=params)
+                if response.status_code != 200:
+                    print("Error searching discourse")
+                    raise Exception("Error searching discourse")
+                jsonData=response.json()        
+                return jsonData
 
-            jsonData=response.json()        
-            if not "topics" in jsonData: return []
-            for topic in jsonData["topics"]:
-                if len(termTopics)>=searchLimit: break
-                id=topic["id"]
-                topicData=self._parseTopic(id,maxNumReplies)
-                termTopics.append(topicData)
-            topics.extend(termTopics)
-
+            try:
+                jsonData= utils.retry(search,3,1)
+                if not "topics" in jsonData: return []
+                for topic in jsonData["topics"]:
+                    if len(termTopics)>=searchLimit: break
+                    id=topic["id"]
+                    topicData=self._parseTopic(id,maxNumReplies)
+                    termTopics.append(topicData)
+                topics.extend(termTopics)
+            except Exception as e:
+                print("Error searching discourse",e)
 
         cache={}
         for topic in topics:
@@ -263,15 +269,15 @@ class DiscourseQuery( basequery.BaseQuery):
             mergedTopic=""
             for t in topics:
                 mergedTopic+=t.page_content+"\n"
-            mergedTopic=Summary.summarizeHTML(mergedTopic,min_length=100,max_length=512,withCodeBlocks=True)
+            mergedTopic=Summary.summarizeHTML(mergedTopic,min_length=200,max_length=512,withCodeBlocks=True)
             print("Merged in ",len(mergedTopic),"chars")
-            topics= [Document(page_content=mergedTopic, metadata={"source": f"{discourseUrl}/search?q="+urllib.parse.quote(params["q"]), "hash":""})]
+            topics= [Document(page_content=mergedTopic, metadata={"source": f"{discourseUrl}/search", "hash":""})]
         return topics
 
-    def getAffineDocs(self, question, context, keywords,  wordSalad=None, unitFilter=None):
+    def getAffineDocs(self, question, shortQuestion, context, keywords,  wordSalad=None, unitFilter=None):
         seachTerms=[]
-        seachTerms.append(question)
+        #seachTerms.append(question)
         seachTerms.extend(keywords)
-        seachTerms=seachTerms[:4]
+        seachTerms=seachTerms[:3]
         return self._search(seachTerms,question)        
 
