@@ -24,12 +24,12 @@ jobs:
             VERSION=${GITHUB_REF#refs/tags/}
           fi
           echo ${{ secrets.GITHUB_TOKEN }} | docker login docker.pkg.github.com -u ${{ github.actor }} --password-stdin
-          docker build -t chat-jme:$VERSION . -f docker/Dockerfile
+          docker build -t chat-jme:$VERSION . -f Dockerfile
           docker tag chat-jme:$VERSION docker.pkg.github.com/${{ github.repository }}/chat-jme:${VERSION}
           docker push docker.pkg.github.com/${{ github.repository }}/chat-jme:${VERSION}
 
         
-    BuildContainerCUDA:
+  BuildContainerCUDA:
       runs-on: ubuntu-latest
       permissions:
         contents: read
@@ -44,7 +44,7 @@ jobs:
             VERSION=${GITHUB_REF#refs/tags/}
           fi
           echo ${{ secrets.GITHUB_TOKEN }} | docker login docker.pkg.github.com -u ${{ github.actor }} --password-stdin
-          docker build -t chat-jme:cuda-$VERSION . -f docker/Dockerfile
+          docker build -t chat-jme:cuda-$VERSION . -f Dockerfile.cuda
           docker tag chat-jme:cuda-$VERSION docker.pkg.github.com/${{ github.repository }}/chat-jme:cuda-${VERSION}
           docker push docker.pkg.github.com/${{ github.repository }}/chat-jme:cuda-${VERSION}
 

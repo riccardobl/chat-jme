@@ -15,7 +15,7 @@ ENV USE_SUMY="true"
 
 
 ENV CONFIG_PATH="/app/config.json"
-ENV CONDA_DIR /opt/conda
+ENV CONDA_DIR /home/nonroot/miniconda3
 ENV PATH=$CONDA_DIR/bin:$PATH
 
 RUN mkdir -p /app&&mkdir -p /cache
@@ -28,14 +28,15 @@ rm -rf /var/lib/apt/lists/* &&\
 groupadd --gid 1000 nonroot&&\
 useradd -m  --uid 1000 --gid 1000 nonroot&&\
 chown nonroot:nonroot -Rf /app&&\
-chown nonroot:nonroot -Rf /cache&&\
-wget --quiet https://repo.anaconda.com/miniconda/Miniconda3-latest-Linux-x86_64.sh -O /tmp/miniconda.sh && \
-/bin/bash /tmp/miniconda.sh -b -p /opt/conda &&\
-rm /tmp/miniconda.sh 
-
+chown nonroot:nonroot -Rf /cache
 
 WORKDIR /app
 USER nonroot
+
+RUN cd /tmp&&\
+wget --quiet https://repo.anaconda.com/miniconda/Miniconda3-latest-Linux-x86_64.sh -O /tmp/miniconda.sh && \
+/bin/bash /tmp/miniconda.sh -b  &&\
+rm /tmp/miniconda.sh 
 
 COPY environment.yml /tmp/environment.yml
 RUN cd /tmp &&\
