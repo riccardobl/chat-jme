@@ -13,7 +13,7 @@ from OpenAICachedEmbeddings import OpenAICachedEmbeddings
 import faiss
 import hashlib
 import copy
-
+import os
 # Group 0 = cache and gpu
 # Group 1 = not cache, gpu
 # Group -1 = not cache, not gpu
@@ -140,7 +140,7 @@ class EmbeddingsManager:
             source_chunks = [source_chunks[i:i + l] for i in range(0, len(source_chunks), l)]
             print("Processing", len(source_chunks),"chunks")               
             print("Create index with",len(source_chunks[0]),"tokens")
-            faiss=utils.retry(lambda: FAISS.from_documents(source_chunks[0], OpenAICachedEmbeddings()))
+            faiss=utils.retry(lambda: FAISS.from_documents(source_chunks[0], OpenAIEmbeddings()))
             if faiss==None:
                 raise Exception("Error creating index")
             if len(source_chunks)>1:
@@ -160,7 +160,7 @@ class EmbeddingsManager:
     @staticmethod
     def embedding_function(index, query):
         if index.embedding_function.__qualname__.startswith("OpenAIEmbeddings."): # Migrate to cached embeddings
-            index.embedding_function=OpenAICachedEmbeddings().embed_query
+            index.embedding_function=OpenAICachedEmbeddings(cachePath=os.path.join(EmbeddingsManager.CONFIG["CACHE_PATH"],"openaiembeddings")).embed_query
         return utils.retry(lambda:index.embedding_function(query))
   
     @staticmethod

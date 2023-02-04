@@ -15,8 +15,8 @@ from pydantic import BaseModel, Extra, root_validator
 
 from langchain.embeddings.base import Embeddings
 from langchain.utils import get_from_dict_or_env
-
-OPENAI_EMBEDDING_CACHE={}
+import hashlib
+import os,pickle
 class OpenAICachedEmbeddings(BaseModel, Embeddings):
     
 
@@ -37,6 +37,7 @@ class OpenAICachedEmbeddings(BaseModel, Embeddings):
     document_model_name: str = "text-embedding-ada-002"
     query_model_name: str = "text-embedding-ada-002"
     openai_api_key: Optional[str] = None
+    cachePath:Optional[str] = None
 
     class Config:
         """Configuration for this pydantic object."""
@@ -83,18 +84,21 @@ class OpenAICachedEmbeddings(BaseModel, Embeddings):
     
 
     def _embedding_func(self, text: str, *, engine: str) -> List[float]:
-        useCache=False #len(text)<200
-        cache=OPENAI_EMBEDDING_CACHE
-        # prevent cache from growing too big
-        if len(cache)>100:
-            cache={}
-
-        if useCache and text in cache :
-            return cache[text]
-        else:
-            embeddings=self._embedding_func2(text, engine=engine)
-            if useCache: cache[text]=embeddings
-            return embeddings
+        textHash=None
+        cachedFile=None
+        if self.cachePath is not None:
+            if not os.path.exists(self.cachePath):
+                os.makedirs(self.cachePath)
+            textHash=hashlib.sha256(text.encode('utf-8')).hexdigest()
+            cachedFile=os.path.join(self.cachePath, textHash+".bin")
+            if os.path.exists(cachedFile):
+                with open(cachedFile, 'rb') as f:
+                    return  pickle.load(f)
+        embeddings=self._embedding_func2(text, engine=engine)
+        if cachedFile is not None: 
+            with open(cachedFile, 'wb') as f:      
+                pickle.dump(embeddings, f)
+        return embeddings
 
     def _embedding_func2(self, text: str, *, engine: str) -> List[float]:
         """Call out to OpenAI's embedding endpoint."""

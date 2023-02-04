@@ -101,7 +101,7 @@ FINAL ANSWER in Markdown: """
     )
 
 
-    memory=ConversationSummaryBufferMemory(llm=OpenAI(), max_token_limit=512,human_prefix="QUESTION",ai_prefix="ANSWER", memory_key="history", input_key="question")
+    memory=ConversationSummaryBufferMemory(llm=OpenAI(), max_token_limit=600,human_prefix="QUESTION",ai_prefix="ANSWER", memory_key="history", input_key="question")
     chain = load_qa_with_sources_chain(
         OpenAI(
             temperature=0.0,
@@ -118,13 +118,14 @@ def queryCache(wordSalad,shortQuestion,cacheConf):
     levels=[None]*len(cacheConf)
     for i in range(len(cacheConf)-1,-1,-1): 
         text=""
-        if i==len(cacheConf)-1:
+        l=cacheConf[i][0]
+        print(i,len(cacheConf))
+        if i==(len(cacheConf)-1):
             text=shortQuestion
         else:
             nextI=i+1
             text=wordSalad+" "+shortQuestion if nextI==len(cacheConf)-2 else levels[i+1][2]
             text=Summary.summarizeText(text,min_length=l,max_length=l)
-        l=cacheConf[i][0]
         embedding=EmbeddingsManager.new(text,"gpu")
         levels[i]=(embedding,cacheConf[i][1],text,EmbeddingsManager.embedding_function(embedding, text))
     
@@ -223,7 +224,9 @@ def queryChain(chain,question):
         if writeInCache!=None:
             writeInCache(output)
     else: 
-        chain.memory.buffer+=output
+        print("Add cached output to history")
+        chain.memory.buffer.append( "\n" + "QUESTION: " + question+"\n"+"ANSWER: " + output["output_text"])
+        
 
     print("A :",output)
     return output
