@@ -6,16 +6,14 @@ from . import basequery
 class EmbeddingsQuery(basequery.BaseQuery):
     def __init__(self, config):
         EmbeddingsQuery.CONFIG = config
-
+ 
     def _getIndices(self,wordSalad, unitFilter=None):
         CONFIG=EmbeddingsQuery.CONFIG
         loaded_parts = []
-        # for each folder in CONFIG["INDEX_PATH"]
         for unit in os.listdir(CONFIG["INDEX_PATH"]):
             if unitFilter!=None and not unitFilter(unit):
                 continue
 
-            #load info.json
             infoPath = os.path.join(CONFIG["INDEX_PATH"],unit,"info.json")
             info={}
             if os.path.exists(infoPath):
@@ -42,4 +40,4 @@ class EmbeddingsQuery(basequery.BaseQuery):
 
     def getAffineDocs(self, question, wordSalad=None, unitFilter=None):
         indices = self._getIndices(wordSalad, unitFilter)
-        return EmbeddingsManager.query(indices,question)        
+        return EmbeddingsManager.query(indices,question,group=EmbeddingsManager.GROUP_GPU_CACHE)        

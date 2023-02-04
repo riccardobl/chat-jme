@@ -227,7 +227,7 @@ class DiscourseQuery( basequery.BaseQuery):
         cache={}
         for topic in topics:
             v=topic["v"]
-            res=EmbeddingsManager.queryIndex(v(),question, k=1, cache=cache, group=-1)
+            res=EmbeddingsManager.queryIndex(v(),question, k=1, cache=cache, group=EmbeddingsManager.GROUP_GPU)
             score=None
             for rdoc in res:
                 rscore=rdoc[1]
@@ -242,7 +242,7 @@ class DiscourseQuery( basequery.BaseQuery):
         fragments=[]
         for t in topics:
             fragments.extend(t["frags"]())            
-        topics=EmbeddingsManager.query(fragments,question, k=n, cache=cache, group=-1)           
+        topics=EmbeddingsManager.query(fragments,question, k=n, cache=cache, group=EmbeddingsManager.GROUP_GPU)           
         if merge:
             print("Found",len(topics),"topics, Merge")        
             mergedTopic=""

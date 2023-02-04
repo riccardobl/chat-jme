@@ -12,20 +12,36 @@ import gc
 from OpenAICachedEmbeddings import OpenAICachedEmbeddings
 import faiss
 import copy
+
+# Group 0 = cache and gpu
+# Group 1 = not cache, gpu
+# Group -1 = not cache, not gpu
+# Group 2 = cache, not gpu
 class EmbeddingsManager:
     CONFIG=None
     LOAD_CACHE=None
     GPU_CACHE=None
     GPU_RESOURCES=None
-    
+    GROUP_GPU_CACHE=0
+    GROUP_GPU=1
+    GROUP_CPU=-1
+    GROUP_CPU_CACHE=2
+
+    @staticmethod
+    def _withCache(group):
+        if not EmbeddingsManager.CONFIG.get("CACHE_EMBEDDINGS",True):
+            return False            
+        return group==EmbeddingsManager.GROUP_GPU_CACHE or group==EmbeddingsManager.GROUP_CPU_CACHE
+
+    @staticmethod
+    def _withGpu(group):
+        return group==EmbeddingsManager.GROUP_GPU or group==EmbeddingsManager.GROUP_GPU_CACHE
 
     @staticmethod
     def init(CONFIG):
         EmbeddingsManager.CONFIG=CONFIG
         EmbeddingsManager.preload()
-        EmbeddingsManager.LOAD_CACHE=None
-        if not EmbeddingsManager.CONFIG.get("CACHE_EMBEDDINGS",False):
-            EmbeddingsManager.LOAD_CACHE={}
+        EmbeddingsManager.LOAD_CACHE={}
         EmbeddingsManager.GPU_CACHE={}
         EmbeddingsManager.GPU_RESOURCES=None
         useGpu=EmbeddingsManager.CONFIG["DEVICE"]=="cuda" or EmbeddingsManager.CONFIG["DEVICE"]=="gpu"
@@ -34,7 +50,7 @@ class EmbeddingsManager:
 
     @staticmethod
     def _toDevice(f,group=0):
-        if EmbeddingsManager.GPU_RESOURCES==None or group<0:
+        if EmbeddingsManager.GPU_RESOURCES==None or not EmbeddingsManager._withGpu(group):
             return f
         else:
             if not group in EmbeddingsManager.GPU_CACHE:
@@ -48,7 +64,7 @@ class EmbeddingsManager:
                 internalIndexToGpu=faiss.index_cpu_to_gpu(EmbeddingsManager.GPU_RESOURCES,0,internalIndex)
                 gpuIndex.index=internalIndexToGpu
                 #gpuIndex=faiss.index_cpu_to_gpu(EmbeddingsManager.GPU_RESOURCES,0,f)
-                if group!=1:
+                if EmbeddingsManager._withCache(group):
                     cache[hash(f)]=gpuIndex
                 return gpuIndex
 
@@ -148,12 +164,12 @@ class EmbeddingsManager:
 
     @staticmethod
     def read(path, group=0):
-        if EmbeddingsManager.LOAD_CACHE!=None:
-            if path in EmbeddingsManager.LOAD_CACHE:
-                return EmbeddingsManager.LOAD_CACHE[path]
+        if path in EmbeddingsManager.LOAD_CACHE:
+            return EmbeddingsManager.LOAD_CACHE[path]
         with open(path, 'rb') as f:
+            print("Loading from disk",path,"...")
             out = pickle.load(f)
-            if group>=0 and group!=1 and EmbeddingsManager.LOAD_CACHE!=None:
+            if EmbeddingsManager._withCache(group):
                 EmbeddingsManager.LOAD_CACHE[path]=out
             if out==None:
                 raise Exception("Error loading index")
