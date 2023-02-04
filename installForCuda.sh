@@ -31,7 +31,7 @@ conda install --yes -c conda-forge libstdcxx-ng
 
 #LD_LIBRARY_PATH= MKLROOT=/usr/local/cuda-11/lib64:$CONDA_PREFIX/lib CXX=$(which g++) \
 cmake -B build \
-        -DCMAKE_CUDA_ARCHITECTURES="60 75"\
+        -DCMAKE_CUDA_ARCHITECTURES="60,75"\
         -DFAISS_ENABLE_GPU=ON \
         -DFAISS_ENABLE_C_API=ON \
         -DFAISS_ENABLE_PYTHON=ON \
