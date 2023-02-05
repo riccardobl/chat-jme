@@ -29,7 +29,7 @@ function appendMsg(from, msg, id, render,classes){
     if(render){
         msg=marked.parse(msg);
     }
-    msgEl.innerHTML=`
+    msgEl.innerHTML=DOMPurify.sanitize(`
         <div class="msgAuthorImg" style="background-image:url('${from.img}')">
         
         </div>
@@ -37,7 +37,7 @@ function appendMsg(from, msg, id, render,classes){
         <span class="msgAuthorName">${from.name}</span> 
         <span class="msgContent">${msg}</span>
         </div>
-    `;
+    `,{ USE_PROFILES: { html: true } });
     if(render){
         msgEl.querySelectorAll("code").forEach(
             el=>hljs.highlightElement(el,{
