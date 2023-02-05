@@ -2,8 +2,12 @@ set -e
 
 cdir="$PWD"
 eval "$($CONDA_DIR/bin/conda shell.bash hook)"
-
 conda init bash 
+
+while [ "$CONDA_PREFIX" != "" ]; do
+    conda deactivate
+done
+
 conda activate jmebot
 
 # Install cuda deps
