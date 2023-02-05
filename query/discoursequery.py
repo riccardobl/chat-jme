@@ -41,7 +41,7 @@ class DiscourseQuery( basequery.BaseQuery):
 
         splitter = CharacterTextSplitter(
             separator="\n",
-            chunk_size=1024,
+            chunk_size=512,
             chunk_overlap=0,
             length_function=len,
         )
@@ -50,6 +50,7 @@ class DiscourseQuery( basequery.BaseQuery):
         for chunk in splitter.split_text(doc.page_content):
             doc=Document(page_content=chunk, metadata=doc.metadata)
             fragmentId=str(topicId)+"-"+str(i)
+            i+=1
             v=self._loadFromCache(fragmentId,True)
             if v==None:
                 if not v:
@@ -186,7 +187,7 @@ class DiscourseQuery( basequery.BaseQuery):
         try:
             cachePath=self._getCachePath(id)
             if isEmbedding :
-                f=os.path.join(cachePath,"question.bin")
+                f=os.path.join(cachePath,"v.binZ")
                 if os.path.exists(f):
                     v=EmbeddingsManager.read(f,group=-1)
                     return v 
@@ -204,7 +205,7 @@ class DiscourseQuery( basequery.BaseQuery):
         try:
             cachePath=self._getCachePath(id)
             if isEmbedding :
-                f=os.path.join(cachePath,"question.bin")
+                f=os.path.join(cachePath,"v.binZ")
                 EmbeddingsManager.write(f,v)
             else:
                 f=os.path.join(cachePath,"content.txt")
