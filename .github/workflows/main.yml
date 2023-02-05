@@ -19,12 +19,19 @@ jobs:
 
       - name: Build and push to registry
         run: |
+          export DOCKER_CLI_EXPERIMENTAL=enabled
+          jq '.+{experimental:true}' /etc/docker/daemon.json > /tmp/docker-daemon.json.tmp
+          sudo mv /tmp/docker-daemon.json.tmp /etc/docker/daemon.json
+          sudo systemctl restart docker.service || journalctl -xeu docker.service
+   
+
+
           VERSION="snapshot"
           if [[ $GITHUB_REF == refs/tags/* ]]; then
             VERSION=${GITHUB_REF#refs/tags/}
           fi
           echo ${{ secrets.GITHUB_TOKEN }} | docker login docker.pkg.github.com -u ${{ github.actor }} --password-stdin
-          docker build -t chat-jme:$VERSION . -f Dockerfile
+          docker build --squash  -t chat-jme:$VERSION . -f Dockerfile
           docker tag chat-jme:$VERSION docker.pkg.github.com/${{ github.repository }}/chat-jme:${VERSION}
           docker push docker.pkg.github.com/${{ github.repository }}/chat-jme:${VERSION}
 
@@ -39,12 +46,18 @@ jobs:
 
       - name: Build and push to registry
         run: |
+          export DOCKER_CLI_EXPERIMENTAL=enabled
+          jq '.+{experimental:true}' /etc/docker/daemon.json > /tmp/docker-daemon.json.tmp
+          sudo mv /tmp/docker-daemon.json.tmp /etc/docker/daemon.json
+          sudo systemctl restart docker.service || journalctl -xeu docker.service
+   
+
           VERSION="snapshot"
           if [[ $GITHUB_REF == refs/tags/* ]]; then
             VERSION=${GITHUB_REF#refs/tags/}
           fi
           echo ${{ secrets.GITHUB_TOKEN }} | docker login docker.pkg.github.com -u ${{ github.actor }} --password-stdin
-          docker build -t chat-jme:cuda-$VERSION . -f Dockerfile.cuda
+          docker build --squash -t chat-jme:cuda-$VERSION . -f Dockerfile.cuda
           docker tag chat-jme:cuda-$VERSION docker.pkg.github.com/${{ github.repository }}/chat-jme:cuda-${VERSION}
           docker push docker.pkg.github.com/${{ github.repository }}/chat-jme:cuda-${VERSION}
 

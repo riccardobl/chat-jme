@@ -22,7 +22,7 @@ ENV PATH=$CONDA_DIR/bin:$PATH
 RUN mkdir -p /app&&mkdir -p /cache
 
 RUN apt-get update && \
-apt-get install -y build-essential  && \
+apt-get install -y build-essential git  && \
 apt-get install -y wget cmake && \
 apt-get clean && \
 rm -rf /var/lib/apt/lists/* &&\
@@ -54,6 +54,14 @@ conda init bash &&\
 conda activate jmebot&&\
 pip --verbose install -r requirements.txt &&\
 pip --verbose cache purge 
+
+USER root
+RUN \
+apt-get remove -y wget build-essential cmake&&\
+apt-get clean &&\
+rm -rf /var/lib/apt/lists/*  
+USER nonroot
+
 
 ADD . /app
 
