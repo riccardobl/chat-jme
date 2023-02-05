@@ -48,12 +48,17 @@ conda init bash &&\
 conda env create  -f environment.yml &&\
 conda activate jmebot&&\
 pip --verbose install -r requirements.txt &&\
-pip --verbose cache purge  &&\
 conda deactivate &&\
 pip3 install numpy &&\
 python3 -c "import numpy; print(numpy.__version__)" &&\
 bash installForCuda.sh &&\
-conda clean --all --yes 
+conda deactivate &&\
+conda activate jmebot &&\
+pip --verbose cache purge  &&\
+conda clean --all --yes &&\
+conda deactivate &&\
+pip3 --verbose cache purge  
+
 
 USER root
 RUN \
