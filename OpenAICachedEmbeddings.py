@@ -91,7 +91,7 @@ class OpenAICachedEmbeddings(BaseModel, Embeddings):
             if not os.path.exists(self.cachePath):
                 os.makedirs(self.cachePath)
             textHash=hashlib.sha256(text.encode('utf-8')).hexdigest()
-            cachedFile=os.path.join(self.cachePath, textHash+".bin")
+            cachedFile=os.path.join(self.cachePath, textHash+".pickle")
             if os.path.exists(cachedFile):
                 with open(cachedFile, 'rb') as f:
                     embeddings =  pickle.load(f)
@@ -103,7 +103,7 @@ class OpenAICachedEmbeddings(BaseModel, Embeddings):
                     pickle.dump(embeddings, f)
                 
                 for f in os.listdir(self.cachePath):
-                    if f.endswith(".bin") and os.path.getmtime(os.path.join(self.cachePath, f)) < time.time() - 86400:
+                    if f.endswith(".pickle") and os.path.getmtime(os.path.join(self.cachePath, f)) < time.time() - 86400:
                         os.remove(os.path.join(self.cachePath, f))
         
         return embeddings
