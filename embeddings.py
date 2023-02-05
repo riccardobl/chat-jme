@@ -82,10 +82,10 @@ class EmbeddingsManager:
             metadata={"source": "", "hash": hashlib.sha256(doc.encode('utf-8')).hexdigest()}
             doc=Document(page_content=doc, metadata=metadata)
 
-        if backend=="cpu" or backend=="gpu" or backend=="cuda":
-            return EmbeddingsManager._newTorch(doc,backend)
-        else: # backend==openai
+        if backend=="openai":
             return EmbeddingsManager._newOpenAI(doc)
+        else: 
+            return EmbeddingsManager._newTorch(doc,backend)
 
     @staticmethod
     def _newTorch(doc,backend):
