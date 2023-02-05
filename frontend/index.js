@@ -172,7 +172,7 @@ async function query(question) {
     if(typeof answer.error!="undefined") {
         throw answer.error||"Unknown error";
     }
-    console.log(answer);
+    console.log("Answer:",answer);
     return answer["output_text"];
 }
 
@@ -223,12 +223,14 @@ async function submit(input, hidden){
             break;
         }catch(e){
             console.error(e);
-            await typeMsg({
+            retry=!e.toString().toLowerCase().startsWith("unknown");
+            await appendMsg({
                 img:"img/jme.png",
                 name: "Jaime Bot"
-            }, `<b class="error">${e.toString()}<br>Trying again...</b>`, id );
+            }, `<b class="error">${e.toString()}`+(retry?"<br>Trying again...":"")+"</b>", id );
+            if(!retry) break;
             await new Promise((resolve, reject)=>{
-                setTimeout(resolve, 1000);
+                setTimeout(resolve, 2000);
             });
         }
     }
