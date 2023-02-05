@@ -19,10 +19,12 @@ from transformers import pipeline
 
 from urllib.parse import urljoin
 class Summary:
-    #summaryChain=None
-    #textSplitter=None
+   
     summarizer=None
+    parser=None
     CONFIG=None
+    tokenizer=None
+
     @staticmethod
     def init(CONFIG):
         Summary.useGPU=CONFIG.get("DEVICE","cpu")=="gpu" or CONFIG.get("DEVICE","cpu")=="cuda"
@@ -33,18 +35,13 @@ class Summary:
                 print("Preloading flan-t5-base-samsum")
                 Summary.summarizer = pipeline("summarization", model='philschmid/flan-t5-base-samsum', device=0 if Summary.useGPU else -1)
                 print("Done")
+        else:
+            LANGUAGE="english"
+            stemmer = Stemmer(LANGUAGE)
+            Summary.summarizer = Summarizer(stemmer)
+            Summary.summarizer.stop_words = get_stop_words(LANGUAGE)
+            Summary.tokenizer=Tokenizer(LANGUAGE)
 
-        # if Summary.qa==None:
-        #     Summary.qa = pipeline("question-answering", model='distilbert-base-cased-distilled-squad')
-
-    # @staticmethod
-    # def getTopic(content,min_length=10,max_length=100):
-    #     return Summary.summarizer(content,min_length=min_length,max_length=max_length)["summary_text"]
-
-    # @staticmethod
-    # def ask(content,question):
-    #     result=Summary.qa(question=question, context=content)
-    #     return result['answer']
 
     @staticmethod
     def getKeywords(content,n=5):
@@ -56,78 +53,58 @@ class Summary:
         keywords = custom_kw_extractor.extract_keywords(content)
         return [ t[0] for t in keywords]
 
-    # @staticmethod
-    # def summarizeComplex(content,min_length=10,max_length=100):
-    #     #device=Summary.CONFIG.get("DEVICE","openai")
-    #     # if device=="gpu" or device=="cuda" or device=="cuda":
-    #     return Summary.summarizer(content,min_length=min_length,max_length=max_length)["summary_text"]
-        # else:
-        #     try:
-        #         if Summary.summaryChain==None:
-        #             llm = OpenAI(temperature=0)
-        #             Summary.summaryChain = load_summarize_chain(llm, chain_type="map_reduce")
-        #             Summary.textSplitter = CharacterTextSplitter()
-        #         texts = Summary.textSplitter.split_text(content)
-        #         docs = [Document(page_content=t) for t in texts]
-        #         out=Summary.summaryChain(docs, return_only_outputs=True)
-        #         gc.collect()
-        #         return out["output_text"]
-        #     except Exception as e:
-        #         print("Error summarizing with openAI. Fallback to others",e)
-        #         return Summary.summarizeText(content,sentence_count=4)
 
 
     @staticmethod
-    def summarizeMarkdown(content,url="",min_length=10,max_length=100, withCodeBlocks=True):
+    def summarizeMarkdown(content,url="",min_length=10,max_length=100, withCodeBlocks=True, length=None):
+        contentLen=length
+        if contentLen==None: contentLen=Summary.getLength(content)
+        if contentLen<min_length: return content
+        if max_length>contentLen: max_length=contentLen
+
         content = mistune.html(content)
         content=Summary.summarizeHTML(content,url,min_length,max_length,withCodeBlocks)
         content = markdownify.markdownify(content, heading_style="ATX",autolinks=True,escape_asterisks=False,escape_underscores=False)
 
     @staticmethod
-    def summarizeText(content,min_length=10,max_length=100):       
+    def getLength(content):
         if Summary.useSumy:
-            try:
-                LANGUAGE="english"
+            return len(Summary.tokenizer.to_sentences(content))
+        else:
+            tokenizer = Summary.summarizer.tokenizer
+            input_ids = tokenizer.encode(content)
+            return len(input_ids)
+
+    @staticmethod
+    def summarizeText(content,min_length=10,max_length=100,length=None):       
+        contentLen=length
+        if contentLen==None: contentLen=Summary.getLength(content)
+        if contentLen<min_length: return content
+        if max_length>contentLen: max_length=contentLen
+
+        if Summary.useSumy:
+            try:                
                 SENTENCES_COUNT = max_length
-                stemmer = Stemmer(LANGUAGE)
-                summarizer = Summarizer(stemmer)
-                summarizer.stop_words = get_stop_words(LANGUAGE)
-                parser = PlaintextParser.from_string(content, Tokenizer(LANGUAGE))
+                parser = PlaintextParser.from_string(content, Summary.tokenizer)
                 text_summary=""
-                for sentence in summarizer(parser.document, SENTENCES_COUNT):
+                for sentence in Summary.summarizer(parser.document, SENTENCES_COUNT):
                     text_summary+=str(sentence)
-                gc.collect()
                 return text_summary
             except Exception as e:
                 print("Error summarizing",e)
-                gc.collect()
                 return ""
-        else:
-            contentLen=len(content)
-            if contentLen<min_length:
-                return content
-            if max_length>contentLen:
-                max_length=contentLen
-            
+        else:                       
             res=Summary.summarizer(content,min_length=min_length,max_length=max_length)
             return res[0]["summary_text"]
 
     @staticmethod
-    def summarizeHTML(content,url="",min_length=10,max_length=100, withCodeBlocks=True):
-        
-        
+    def summarizeHTML(content,url="",min_length=10,max_length=100, withCodeBlocks=True,length=None):
+        contentLen=length
+        if contentLen==None: contentLen=Summary.getLength(content)
+        if contentLen<min_length: return content
+        if max_length>contentLen: max_length=contentLen
 
-        try:
-            # LANGUAGE="english"
-            # SENTENCES_COUNT = sentences_count
-            # stemmer = Stemmer(LANGUAGE)
-            # summarizer = Summarizer(stemmer)
-            # summarizer.stop_words = get_stop_words(LANGUAGE)
-            # parser = HtmlParser.from_string(content, url=url,tokenizer=Tokenizer(LANGUAGE))
-            # text_summary=""
-            # for sentence in summarizer(parser.document, SENTENCES_COUNT):
-            #     text_summary+=str(sentence)
-        
+        try:       
             # Extract links
             soup = BeautifulSoup(content, 'html.parser')
             for link in soup.find_all('a'):
