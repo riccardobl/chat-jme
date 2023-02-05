@@ -12,7 +12,7 @@ import gc
 from OpenAICachedEmbeddings import OpenAICachedEmbeddings
 import faiss
 import hashlib
-import copy
+import copy,gzip
 import os
 # Group 0 = cache and gpu
 # Group 1 = not cache, gpu
@@ -165,23 +165,35 @@ class EmbeddingsManager:
   
     @staticmethod
     def write(path,embed):
+        compressed=path.endswith("Z")
         if embed==None:
             raise Exception("Can't write None")
-        with open(path, 'wb') as f:      
-            pickle.dump(embed, f)
+        if not compressed:       
+            with open(path, 'wb') as f:      
+                pickle.dump(embed, f)
+        else:
+            with gzip.open(path, 'wb', compresslevel=9) as f:
+                pickle.dump(embed, f)
 
     @staticmethod
     def read(path, group=0):
         if path in EmbeddingsManager.LOAD_CACHE:
             return EmbeddingsManager.LOAD_CACHE[path]
-        with open(path, 'rb') as f:
-            print("Loading from disk",path,"...")
-            out = pickle.load(f)
-            if EmbeddingsManager._withCache(group):
-                EmbeddingsManager.LOAD_CACHE[path]=out
-            if out==None:
-                raise Exception("Error loading index")
-            return out
+        compressed=path.endswith("Z")
+        
+        f=open(path, 'rb') if not compressed else gzip.open(path, 'rb')
+       
+        print("Loading from disk",path,"...")
+        out = pickle.load(f)
+        f.close()
+
+        if EmbeddingsManager._withCache(group):
+            EmbeddingsManager.LOAD_CACHE[path]=out
+        if out==None:
+            raise Exception("Error loading index")
+        
+        return out
+        
 
     @staticmethod
     def queryIndex(index,query,k=4, cache=None, group=0):
