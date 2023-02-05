@@ -49,7 +49,11 @@ cmake -B build \
          -DCMAKE_BUILD_TYPE=Release \
         .
 
-make  -C build -j4
+if [ "$MAKE_FLAGS" = "" ]; then
+        MAKE_FLAGS=" -j$(nproc) "
+fi
+
+make  -C build $MAKE_FLAGS
 
 conda activate jmebot
 cd build/faiss/python 
