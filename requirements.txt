@@ -10,3 +10,4 @@ sumy
 sentence-transformers
 yake
 transformers
+cohere

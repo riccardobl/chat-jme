@@ -27,6 +27,8 @@ from query.discoursequery import DiscourseQuery
 from query.embeddingsquery import EmbeddingsQuery
 from Summary import Summary
 import uuid
+from langchain.llms import AI21
+from langchain.llms import Cohere
 CONFIG=None
 QUERIERS=[]
 
@@ -101,17 +103,44 @@ FINAL ANSWER in Markdown: """
     )
 
 
-    memory=ConversationSummaryBufferMemory(llm=OpenAI(), max_token_limit=700,human_prefix="QUESTION",ai_prefix="ANSWER", memory_key="history", input_key="question")
-    chain = load_qa_with_sources_chain(
-        OpenAI(
+
+    # Backward compatibility
+    model_name=CONFIG.get("OPENAI_MODEL","text-davinci-003")
+    llm_name="openai"
+    ######## 
+    
+    llmx=CONFIG.get("LLM_MODEL",None) # "openai:text-davinci-003" "cohere:xlarge"
+    if llmx!=None: llm_name,model_name=llmx.split(":")
+
+    llm=None
+    if llm_name=="openai":
+        llm=OpenAI(
             temperature=0.0,
-            model_name="text-davinci-003",
-            max_tokens=1800,
-        ), 
+            model_name=model_name,
+            max_tokens=1800 if model_name=="text-davinci-003" else 512,
+        )
+    elif llm_name=="cohere":
+        llm=Cohere(
+            model_name=model_name,
+        ) 
+    elif llm_name=="ai21":
+        llm=AI21(
+            temperature=0.7,
+            model=model_name,
+        )   
+    else:
+        raise Exception("Unknown LLM "+llm_name)
+
+    print("Use model ",model_name,"from",llm_name)
+
+    memory=ConversationSummaryBufferMemory(llm=llm, max_token_limit=700,human_prefix="QUESTION",ai_prefix="ANSWER", memory_key="history", input_key="question")
+    chain = load_qa_with_sources_chain(
+        llm,
         memory=memory, 
         prompt=prompt, 
         verbose=True,
     )
+
     return chain
 
 def queryCache(wordSalad,shortQuestion,cacheConf):    
@@ -192,10 +221,7 @@ def queryCache(wordSalad,shortQuestion,cacheConf):
 
 
 def queryChain(chain,question):
-    shortQuestion=question
-    
-    if len(shortQuestion)>1024:
-        shortQuestion=Summary.summarizeMarkdown(question,min_length=100,max_length=1024,withCodeBlocks=False)
+    shortQuestion=Summary.summarizeMarkdown(question,min_length=100,max_length=1024,withCodeBlocks=False)
 
     wordSalad=""
     for h in chain.memory.buffer: wordSalad+=h+" "
