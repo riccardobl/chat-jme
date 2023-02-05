@@ -60,7 +60,7 @@ conda env create  -f environment.yml
 ```
 4. Activate the environment
 ```bash
-conda activate chat-jme
+conda activate jmebot
 ```
 5. Install extra dependencies
 ```bash
