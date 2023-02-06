@@ -1,4 +1,4 @@
-FROM nvidia/cuda:11.7.0-cudnn8-devel-ubuntu22.04 as faissbuilder
+FROM nvidia/cuda:11.8.0-devel-ubuntu22.04 as faissbuilder
 
 ENV CUDA_HOME=/usr/local/cuda-11
 ENV FAISS_ENABLE_GPU=ON
@@ -29,7 +29,7 @@ MAKE_FLAGS=" -j$(nproc) " &&\
 make  -C build $MAKE_FLAGS
 
 
-FROM nvidia/cuda:11.7.0-cudnn8-runtime-ubuntu22.04
+FROM nvidia/cuda:11.8.0-devel-ubuntu22.04
 
 # SET ME
 ENV OPENAI_API_KEY=""
