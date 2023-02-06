@@ -58,12 +58,18 @@ COPY requirements.txt /tmp/requirements.txt
 COPY --from=faissbuilder /root/faiss/build/faiss/python/ /tmp/faiss-build
 WORKDIR /app
 
-RUN apt-get update && \
+USER root
+RUN groupadd --gid 1000 nonroot&&\
+useradd -m  --uid 1000 --gid 1000 nonroot&&\
+apt-get update && \
 apt-get install -y wget git && \
 apt-get clean && \
 rm -rf /var/lib/apt/lists/* &&\
 mkdir -p /app &&\
-cd /tmp &&\
+chown nonroot:nonroot -Rf /app
+
+USER nonroot
+RUN cd /tmp &&\
 wget --quiet https://repo.anaconda.com/miniconda/Miniconda3-latest-Linux-x86_64.sh -O /tmp/miniconda.sh && \
 /bin/bash /tmp/miniconda.sh -b  &&\
 rm /tmp/miniconda.sh &&\
@@ -73,7 +79,9 @@ conda env create  -f environment.yml &&\
 conda activate jmebot&&\
 conda update --yes -n base -c defaults conda &&\
 pip install --yes --upgrade pip &&\
-conda install --yes -c nvidia  cuda-toolkit==11.7  pytorch-cuda=11.7 pytorch==1.13.1 libopenblas  -c pytorch    &&\
+conda install --yes -c nvidia  cuda-toolkit==11.7 libopenblas pytorch-cuda=11.7 pytorch==1.13.1  -c pytorch  &&\
+pip uninstall -y torch &&\
+pip install -y torch==1.13.1 --extra-index-url https://download.pytorch.org/whl/cu117 &&\
 pip --verbose install -r requirements.txt &&\
 cd /tmp/faiss-build &&\
 python3 setup.py build &&\
@@ -82,7 +90,9 @@ pip uninstall --yes faiss-cpu &&\
 pip --verbose cache purge  &&\
 conda clean --all --yes 
 
+USER root
 ADD . /app
-
+RUN chown nonroot:nonroot -Rf /app
+USER nonroot
 
 ENTRYPOINT [ "bash" , "/app/docker_entrypoint.sh" ]
