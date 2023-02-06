@@ -11,3 +11,5 @@ sentence-transformers
 yake
 transformers
 cohere
+nlpcloud
+Flask

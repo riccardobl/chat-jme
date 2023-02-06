@@ -1,4 +1,35 @@
-FROM nvidia/cuda:11.7.0-cudnn8-devel-ubuntu22.04
+FROM nvidia/cuda:11.7.0-cudnn8-devel-ubuntu22.04 as faissbuilder
+
+ENV CUDA_HOME=/usr/local/cuda-11
+ENV FAISS_ENABLE_GPU=ON
+ENV PATH="/usr/local/cuda-11/bin:$PATH"
+WORKDIR /root
+RUN \
+apt-get update  &&\
+apt-get install -y build-essential  &&\
+apt-get install -y cmake swig git python3 python3-pip python3-dev libopenblas-dev  libpcre3-dev &&\
+apt-get upgrade -y &&\
+apt-get clean  &&\
+rm -rf /var/lib/apt/lists/* &&\
+git clone https://github.com/facebookresearch/faiss.git --depth 1 --branch v1.7.3 &&\
+cd faiss &&\
+PYTHON_EXECUTABLE="$(which python3)"&&\
+pip3 install numpy &&\
+cmake -B build \
+        -DPython_EXECUTABLE="$PYTHON_EXECUTABLE" \
+        -DCMAKE_CUDA_ARCHITECTURES="60;75"\
+        -DFAISS_ENABLE_GPU=ON \
+        -DFAISS_ENABLE_C_API=ON \
+        -DFAISS_ENABLE_PYTHON=ON \
+        -DBUILD_TESTING=OFF \
+         -DFAISS_OPT_LEVEL=avx2  \
+         -DCMAKE_BUILD_TYPE=Release \
+        . &&\
+MAKE_FLAGS=" -j$(nproc) " &&\
+make  -C build $MAKE_FLAGS
+
+
+FROM nvidia/cuda:11.7.0-cudnn8-runtime-ubuntu22.04
 
 # SET ME
 ENV OPENAI_API_KEY=""
@@ -14,27 +45,22 @@ ENV DEVICE="cuda"
 ENV USE_SUMY="false"
 ENV OPENAI_MODEL="text-davinci-003"
 
-
 ENV CONFIG_PATH="/app/config.json"
 ENV CONDA_DIR /home/nonroot/miniconda3
 ENV PATH=$CONDA_DIR/bin:$PATH
 
 COPY environment.yml /tmp/environment.yml
 COPY requirements.txt /tmp/requirements.txt
-COPY installForCuda.sh /tmp/installForCuda.sh
+COPY --from=faissbuilder /root/faiss/build/faiss/python/ /tmp/faiss-build
 
-RUN mkdir -p /app&&mkdir -p /cache &&\
-apt-get update && \
-apt-get install -y build-essential  && \
-apt-get install -y wget cmake swig git python3 python3-pip python3-dev libopenblas-dev  libpcre3-dev&& \
-apt-get upgrade -y &&\
+RUN apt-get update && \
+apt-get install -y wget git && \
 apt-get clean && \
 rm -rf /var/lib/apt/lists/* &&\
+mkdir -p /app &&\
 groupadd --gid 1000 nonroot&&\
 useradd -m  --uid 1000 --gid 1000 nonroot&&\
-chown nonroot:nonroot -Rf /app&&\
-chown nonroot:nonroot -Rf /cache && \
-python3 --version 
+chown nonroot:nonroot -Rf /app
 
 WORKDIR /app
 USER nonroot
@@ -47,26 +73,23 @@ eval "$($CONDA_DIR/bin/conda shell.bash hook)"&&\
 conda init bash &&\
 conda env create  -f environment.yml &&\
 conda activate jmebot&&\
+conda install --yes -c conda-forge libstdcxx-ng&&\
+conda install --yes cuda-toolkit=11.7 pytorch pytorch-cuda=11.7 -c pytorch -c nvidia  -c "nvidia/label/cuda-11.7.0"  &&\
+pip uninstall --yes faiss-cpu &&\
 pip --verbose install -r requirements.txt &&\
-conda deactivate &&\
-pip3 install numpy &&\
-python3 -c "import numpy; print(numpy.__version__)" &&\
-bash installForCuda.sh &&\
-conda deactivate &&\
-conda activate jmebot &&\
+cd /tmp/faiss-build &&\
+python3 setup.py build &&\
+python3 setup.py install&&\
+cd /app &&\
+rm -Rf /tmp/faiss-build &&\
 pip --verbose cache purge  &&\
-conda clean --all --yes &&\
-conda deactivate &&\
-pip3 --verbose cache purge  
-
-
-USER root
-RUN \
-apt-get remove -y wget cmake build-essential python3 python3-dev swig libopenblas-dev libpcre3-dev &&\
-apt-get clean &&\
-rm -rf /var/lib/apt/lists/*  
-USER nonroot
+conda clean --all --yes 
 
 ADD . /app
 
+USER root
+ADD . /app
+RUN chown nonroot:nonroot -Rf /app
+
+USER nonroot
 ENTRYPOINT [ "bash" , "/app/docker_entrypoint.sh" ]
