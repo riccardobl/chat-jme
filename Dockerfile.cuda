@@ -56,17 +56,14 @@ ENV NVIDIA_VISIBLE_DEVICES="all"
 COPY environment.yml /tmp/environment.yml
 COPY requirements.txt /tmp/requirements.txt
 COPY --from=faissbuilder /root/faiss/build/faiss/python/ /tmp/faiss-build
+WORKDIR /app
 
 RUN apt-get update && \
 apt-get install -y wget git && \
 apt-get clean && \
 rm -rf /var/lib/apt/lists/* &&\
-mkdir -p /app 
-
-
-WORKDIR /app
-
-RUN cd /tmp&&\
+mkdir -p /app &&\
+cd /tmp &&\
 wget --quiet https://repo.anaconda.com/miniconda/Miniconda3-latest-Linux-x86_64.sh -O /tmp/miniconda.sh && \
 /bin/bash /tmp/miniconda.sh -b  &&\
 rm /tmp/miniconda.sh &&\
@@ -76,7 +73,7 @@ conda env create  -f environment.yml &&\
 conda activate jmebot&&\
 conda update --yes -n base -c defaults conda &&\
 pip install --yes --upgrade pip &&\
-conda install --yes cuda-toolkit=11.7 pytorch libopenblas  pytorch-cuda=11.7 -c pytorch -c nvidia    &&\
+conda install --yes -c nvidia  cuda-toolkit==11.7  pytorch-cuda=11.7 pytorch==1.13.1 libopenblas  -c pytorch    &&\
 pip --verbose install -r requirements.txt &&\
 cd /tmp/faiss-build &&\
 python3 setup.py build &&\
@@ -87,6 +84,5 @@ conda clean --all --yes
 
 ADD . /app
 
-ADD . /app
 
 ENTRYPOINT [ "bash" , "/app/docker_entrypoint.sh" ]
