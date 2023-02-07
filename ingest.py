@@ -102,7 +102,18 @@ def ingest(config) :
     docs.extend(qs.updateIndex())
     
     #cleanIndex(docs)
- 
+
+    #parse Monkey-Droid
+    qs=source.Source(config,{
+        "unit":"Monkey-Droid-github",
+        "triggerWords":["android","mobile","phone"]   
+    },"https://github.com/Monkey-Droid/jme3-Simple-Examples","jme3-Simple-Examples",{
+        "java":[
+            "java","md"
+        ]
+    })
+    docs.extend(qs.updateIndex())
+
 args=sys.argv
 confiFile=args[1] if len(args)>1 else "config.json"
 print("Use config file", confiFile)
