@@ -245,20 +245,19 @@ class EmbeddingsManager:
         # if query is array
         if not isinstance(query, list):
             query=[query]
-
-        for q in query:
-           
-            print("Compute embedding for query")
-            embedding =  EmbeddingsManager.embedding_function(indices[0], q)
-            for index in indices:
-                res=EmbeddingsManager.queryIndex(index,embedding, k=k, cache=None,group=group),
-                for res2 in res:
-                    for rdoc in res2:
-                        score=rdoc[1]
-                        results.append({
-                            "doc": rdoc[0],
-                            "score": score
-                        })       
+        if len(indices)>0:
+            for q in query:            
+                print("Compute embedding for query")
+                embedding =  EmbeddingsManager.embedding_function(indices[0], q)
+                for index in indices:
+                    res=EmbeddingsManager.queryIndex(index,embedding, k=k, cache=None,group=group),
+                    for res2 in res:
+                        for rdoc in res2:
+                            score=rdoc[1]
+                            results.append({
+                                "doc": rdoc[0],
+                                "score": score
+                            })       
 
 
         best= sorted(results, key=lambda x: x["score"], reverse=False)[:n]
