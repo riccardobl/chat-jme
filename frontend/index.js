@@ -1,4 +1,5 @@
 
+const STATIC_TIMESTAMP=Date.now();
 let NEXT_MESSAGE_ID=0;
 
 const TYPING={}
@@ -71,7 +72,8 @@ function typeMsg(from,msg,id ,classes){
                 return;
             }
             if(t.outputPos<t.msg.length){
-                id=appendMsg(t.from, t.msg.substring(0, ++t.outputPos), id,false,classes);
+                id=appendMsg(t.from, t.msg.substring(0, t.outputPos), id,false,classes);
+                t.outputPos+=2;
                 t.timeout=setTimeout(()=>typewrite(), 20);
             }else{
                 id=appendMsg(t.from, t.msg, id,true,classes);
@@ -91,7 +93,7 @@ function grabInput(){
 }
 
 async function getSupportedLangs(){
-    const langs=await fetch("/langs", {
+    const langs=await fetch("/langs?time="+Date.now(), {
         method: "GET",
         headers: {
             "Content-Type": "application/json"
@@ -102,10 +104,10 @@ async function getSupportedLangs(){
         {
             "name":"Auto",
             "code":"auto",
-            "icon":`img/autolang.png`
+            "icon":"img/autolang.png?time="+STATIC_TIMESTAMP
         },
         ...(langs.map(lang=>{
-            lang.icon=`img/language-icons/icons/${lang.code}.svg`
+            lang.icon="img/language-icons/icons/"+lang.code+".svg?time="+STATIC_TIMESTAMP
             return lang;
         }))];
 }
@@ -162,7 +164,7 @@ async function query(question) {
     });
     console.log("Querying: " + body);
 
-    const answer = await fetch("/query", {
+    const answer = await fetch("/query?time="+Date.now(), {
         method: "POST",
         headers: {
             "Content-Type": "application/json"
@@ -187,7 +189,7 @@ async function submit(input, hidden){
 
     if(!hidden){
         appendMsg({
-            img:"img/you.jpg",
+            img:"img/you.jpg?time="+STATIC_TIMESTAMP,
             name: "Human"
         }, input,undefined,true,["human"]);
     }
@@ -198,13 +200,13 @@ async function submit(input, hidden){
   
 
     const   id=appendMsg({
-        img:"img/jme.png",
+        img:"img/jme.png?time="+STATIC_TIMESTAMP,
         name: "Jaime Bot"
     }, "Thinking...");
     for(let i=0;i<10;i++){
         try{
             appendMsg({
-                img:"img/jme.png",
+                img:"img/jme.png?time="+STATIC_TIMESTAMP,
                 name: "Jaime Bot"
             }, "Thinking...",id);
             
@@ -214,7 +216,7 @@ async function submit(input, hidden){
             // const typewrite=()=>{
             //     if(outputPos<output.length){
             await typeMsg({
-                img:"img/jme.png",
+                img:"img/jme.png?time="+STATIC_TIMESTAMP,
                 name: "Jaime Bot"
             }, output, id );
 
@@ -225,7 +227,7 @@ async function submit(input, hidden){
             console.error(e);
             retry=!e.toString().toLowerCase().startsWith("unknown");
             await appendMsg({
-                img:"img/jme.png",
+                img:"img/jme.png?time="+STATIC_TIMESTAMP,
                 name: "Jaime Bot"
             }, `<b class="error">${e.toString()}`+(retry?"<br>Trying again...":"")+"</b>", id );
             if(!retry) break;
@@ -256,7 +258,7 @@ async function keepAlive(){
         }
         lang=window.userAgentLang;
     }
-    const newSession=await fetch("/session", {
+    const newSession=await fetch("/session?time="+Date.now(), {
         method: "POST",
         headers: {
             "Content-Type": "application/json"
@@ -328,7 +330,7 @@ async function main(){
     
     //submit(session.helloText,true);
     await typeMsg({
-        img:"img/jme.png",
+        img:"img/jme.png?time="+STATIC_TIMESTAMP,
         name: "Jaime Bot"
     }, session.welcomeText );
 
