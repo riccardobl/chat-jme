@@ -66,7 +66,8 @@ apt-get install -y wget git && \
 apt-get clean && \
 rm -rf /var/lib/apt/lists/* &&\
 mkdir -p /app &&\
-chown nonroot:nonroot -Rf /app
+chown nonroot:nonroot -Rf /app&&\
+chown nonroot:nonroot -Rf /tmp/faiss-build
 
 USER nonroot
 RUN cd /tmp &&\
