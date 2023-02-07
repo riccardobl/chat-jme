@@ -47,6 +47,34 @@ def ingest(config) :
     qs=source.Source(config,{
         "unit":"jmonkeyengine-github",
         "triggerWords":[]   
+    },"https://github.com/jMonkeyEngine/jmonkeyengine.git","jmonkeyengine",{
+        "java":["java","md"]
+    })
+    docs.extend(qs.updateIndex())
+
+    # Parse source (shaders)
+    qs=source.Source(config,{
+        "unit":"jmonkeyengine-github-shaders",
+        "triggerWords":["shader","glsl"]   
+    },"https://github.com/jMonkeyEngine/jmonkeyengine.git","jmonkeyengine",{
+        "shader":[
+            "glsl",
+            "glsllib",
+            "vert",
+            "frag",
+            "geom"
+        ]
+    })
+    docs.extend(qs.updateIndex())
+
+    # Parse source (gradle)
+    qs=source.Source(config,{
+        "unit":"jmonkeyengine-github-gradle",
+        "triggerWords":["gradle","build","buildscript","compile","dependencies"]   
+    },"https://github.com/jMonkeyEngine/jmonkeyengine.git","jmonkeyengine",{
+        "gradle":[
+            "gradle"
+        ]
     })
     docs.extend(qs.updateIndex())
 
