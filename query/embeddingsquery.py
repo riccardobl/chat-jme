@@ -2,6 +2,7 @@
 import os,json
 from embeddings import EmbeddingsManager
 from . import basequery
+import utils
 
 class EmbeddingsQuery(basequery.BaseQuery):
     def __init__(self, config):
@@ -40,4 +41,5 @@ class EmbeddingsQuery(basequery.BaseQuery):
 
     def getAffineDocs(self, question, context, keywords, shortQuestion,  wordSalad=None, unitFilter=None):
         indices = self._getIndices(wordSalad, unitFilter)
-        return EmbeddingsManager.query(indices,[question,context],group=EmbeddingsManager.GROUP_GPU_CACHE)        
+        return utils.enqueue(lambda: EmbeddingsManager.query(indices,[question,context],group=EmbeddingsManager.GROUP_GPU_CACHE))
+                

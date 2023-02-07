@@ -21,6 +21,7 @@ from embeddings import EmbeddingsManager
 from . import basequery
 import gc
 import urllib
+import multiprocessing
 import utils
 from Summary import Summary
 
@@ -49,45 +50,16 @@ class DiscourseQuery( basequery.BaseQuery):
         i=0
         for chunk in splitter.split_text(doc.page_content):
             doc=Document(page_content=chunk, metadata=doc.metadata)
-            fragmentId=str(topicId)+"-"+str(i)
-            i+=1
-            v=self._loadFromCache(fragmentId,True)
-            if v==None:
-                if not v:
-                    v=EmbeddingsManager.new(doc,self.CONFIG["DEVICE"])
-                    self._saveToCache(fragmentId,v,True)
+            v=EmbeddingsManager.new(doc,self.CONFIG["DEVICE"])
             frags.append(v)
         return frags
 
-    # def _summarize(self,content,url,sentences_count=4, withCodeBlocks=True):
-    #     try:
-    #         LANGUAGE="english"
-    #         SENTENCES_COUNT = sentences_count
-    #         stemmer = Stemmer(LANGUAGE)
-    #         summarizer = Summarizer(stemmer)
-    #         summarizer.stop_words = get_stop_words(LANGUAGE)
-    #         parser = HtmlParser.from_string(content, url=url,tokenizer=Tokenizer(LANGUAGE))
-    #         text_summary=""
-    #         for sentence in summarizer(parser.document, SENTENCES_COUNT):
-    #             text_summary+=str(sentence)
 
-    #         if withCodeBlocks:
-    #             # extract code blocks and add them back to the summary
-    #             soup = BeautifulSoup(content, 'html.parser')
-    #             codeBlocks=soup.find_all("pre")
-    #             for codeBlock in codeBlocks:
-    #                 text_summary+="<pre><code>"
-    #                 text_summary+=codeBlock.text
-    #                 text_summary+="</code></pre>"
-    #         gc.collect()
-    #         return text_summary
-    #     except Exception as e:
-    #         print("Error summarizing",e)
-    #         return ""
 
     def _parseTopic(self,topicId, maxNumReplies=5):
         discourseUrl=self.url
         url = f"{discourseUrl}/t/{topicId}.json"
+        cachePath=self._getCachePath(topicId)
 
         d=None
         def getData():
@@ -102,20 +74,24 @@ class DiscourseQuery( basequery.BaseQuery):
             return d
 
         def getV():
-            v=self._loadFromCache(topicId,True)
-            if not v:
+            questionPath=os.path.join(cachePath,"question.binZ")
+            if os.path.exists(questionPath):
+                return EmbeddingsManager.read(questionPath)
+            else:
                 print("Get initial question of",topicId)
                 data=getData()
                 initialQuestion=data["title"]+"\n"+data["post_stream"]["posts"][0]["cooked"]
+                initialQuestion=Summary.summarizeHTML(initialQuestion,max_length=256)
+                print("Question:",initialQuestion)
                 v=EmbeddingsManager.new(Document(page_content=initialQuestion),self.CONFIG["DEVICE"])
-                self._saveToCache(topicId,v,True)
-            else:
-                print("Get initial question from cache",topicId)
-            return v
+                EmbeddingsManager.write(questionPath,v)
+                return v
 
         def getContent():
-            content=self._loadFromCache(topicId,False)
-            if content==None: 
+            contentPath=os.path.join(cachePath,"fragments.binZ")
+            if os.path.exists(contentPath):
+                return EmbeddingsManager.read(contentPath)
+            else:
                 data=getData()
                 print("Process",topicId)
                 content=[]
@@ -129,12 +105,6 @@ class DiscourseQuery( basequery.BaseQuery):
                     nonlocal isQuestion
                     nonlocal isFirst
                     if len(contentPart)==0: return
-                    minLen=100
-                    maxLen=300
-                    if isQuestion:
-                        minLen=100
-                        maxLen=500
-                    contentPart=Summary.summarizeHTML(contentPart,f"{discourseUrl}/t/{topicId}",max_length=maxLen,min_length=minLen,withCodeBlocks=not isQuestion)
                     c=""
                     if isQuestion:
                         c+="\n\nQUESTION:\n"
@@ -147,6 +117,7 @@ class DiscourseQuery( basequery.BaseQuery):
                         c+="\n\nANSWER:\n"                
                     c+=contentPart
                     contentPart=""    
+                    print("Content",c)
                     content.append(c)                    
                 for post in posts:
                     postAuthorId=post["user_id"]
@@ -164,11 +135,12 @@ class DiscourseQuery( basequery.BaseQuery):
                     content=content[:1]+content[-maxNumReplies:]
                 content="\n".join(content)
 
+                content=Summary.summarizeHTML(content,f"{discourseUrl}/t/{topicId}",max_length=512,min_length=120,withCodeBlocks=True)
                 content = markdownify.markdownify(content, heading_style="ATX",autolinks=True,escape_asterisks=False,escape_underscores=False)
-                self._saveToCache(topicId,content,False)
-            else:  
-                print("Get from cache",topicId)
-            return self._createFragments(topicId, content,discourseUrl+"/t/"+str(topicId))
+                content = self._createFragments(topicId, content,discourseUrl+"/t/"+str(topicId))
+                EmbeddingsManager.write(contentPath,content)
+                return content
+
         return {
             "id":topicId,
             "frags":getContent,
@@ -182,45 +154,13 @@ class DiscourseQuery( basequery.BaseQuery):
         if not os.path.exists(cachePath):
             os.makedirs(cachePath)
         return cachePath
-
-    def _loadFromCache(self,id, isEmbedding):
-        try:
-            cachePath=self._getCachePath(id)
-            if isEmbedding :
-                f=os.path.join(cachePath,"v.binZ")
-                if os.path.exists(f):
-                    v=EmbeddingsManager.read(f,group=-1)
-                    return v 
-            else:
-                f=os.path.join(cachePath,"content.txt")
-                if os.path.exists(f):
-                    with open(f, 'r') as f:
-                        content = f.read()
-                        return content     
-        except Exception as e:
-            print("Error loading from cache",e)
-        return None
-    
-    def _saveToCache(self,id,v, isEmbedding):
-        try:
-            cachePath=self._getCachePath(id)
-            if isEmbedding :
-                f=os.path.join(cachePath,"v.binZ")
-                EmbeddingsManager.write(f,v)
-            else:
-                f=os.path.join(cachePath,"content.txt")
-                with open(f, 'w') as f:
-                    f.write(v)
-        except Exception as e:
-            print("Error saving to cache",isEmbedding,e)
  
-    def _search(self, searchTerms, question,searchLimit=2,maxTopicsToSelect=2,maxFragmentsToReturn=3,maxNumReplies=3, merge=True):
+    def _search(self, searchTerms, question,searchLimit=1,maxTopicsToSelect=1,maxFragmentsToReturn=3,maxNumReplies=2, merge=False):
         discourseUrl=self.url
 
 
         # Search
-        topics=[]
-        for term in searchTerms:
+        def getTopics(term):
             termTopics=[]
             def search():    
                 params = {
@@ -242,12 +182,19 @@ class DiscourseQuery( basequery.BaseQuery):
                     id=topic["id"]
                     topicData=self._parseTopic(id,maxNumReplies)
                     termTopics.append(topicData)
-                topics.extend(termTopics)
             except Exception as e:
                 print("Error searching discourse",e)
+            return termTopics
 
+        topics=[]
+        for term in searchTerms:
+            topics.extend(getTopics(term))
+        
         cache={}
-        for topic in topics:
+        
+        
+        #for topic in topics:
+        def assignScore(topic):
             v=topic["v"]
             res=EmbeddingsManager.queryIndex(v(),question, k=1, cache=cache, group=EmbeddingsManager.GROUP_GPU)
             score=None
@@ -256,15 +203,19 @@ class DiscourseQuery( basequery.BaseQuery):
                 if not score or rscore<score:
                     score=rscore
             topic["score"]=score
-            gc.collect()       
-                
+            return topic
+        
+        for topic in topics:
+            assignScore(topic)
+
         topics = sorted(topics, key=lambda x: x["score"], reverse=False)[:maxTopicsToSelect]
+
         gc.collect()
 
         fragments=[]
         for t in topics:
             fragments.extend(t["frags"]())            
-        topics=EmbeddingsManager.query(fragments,question, k=3,n=1, cache=cache, group=EmbeddingsManager.GROUP_GPU)           
+        topics=EmbeddingsManager.query(fragments,question, k=3,n=maxFragmentsToReturn, cache=cache, group=EmbeddingsManager.GROUP_GPU)           
         if merge:
             print("Found",len(topics),"topics, Merge")        
             mergedTopic=""
@@ -280,5 +231,6 @@ class DiscourseQuery( basequery.BaseQuery):
         #seachTerms.append(question)
         seachTerms.extend(keywords)
         seachTerms=seachTerms[:3]
-        return self._search(seachTerms,question)        
+        #return self._search(seachTerms,question)        
+        return utils.enqueue(lambda: self._search(seachTerms,question))
 

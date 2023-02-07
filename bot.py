@@ -1,4 +1,7 @@
 import os
+
+import utils
+
 import traceback
 from langchain.chains.qa_with_sources import load_qa_with_sources_chain
 from langchain.chains import ConversationChain
@@ -27,6 +30,7 @@ from query.discoursequery import DiscourseQuery
 from query.embeddingsquery import EmbeddingsQuery
 from Summary import Summary
 import uuid
+from langchain.llms import NLPCloud
 from langchain.llms import AI21
 from langchain.llms import Cohere
 CONFIG=None
@@ -74,33 +78,7 @@ def rewrite(question):
 
 
 def createChain():
-    template = """You are an AI assistant for the open source game engine jMonkeyEngine. 
-The documentation is located at https://wiki.jmonkeyengine.org . 
-The source code is located at this github repository https://github.com/jMonkeyEngine/jmonkeyengine/ .
-In the answer includes a code snippet as an example.
-When replying consider these rules:
-- Applets are not supported anymore so don't answer things related to Applets.
-- When the question contains "show me the code", write a code snippet in the answer.
-- IOs is not supported anymore so don't answer things related to IOs.
-- You can use any code from github and the documentation
-
-Given the following extracted parts of a long document and a question, create a conversational final answer with references ("SOURCES"). 
-ALWAYS prefix "SOURCES" with four new lines.
-
-========= 
-{summaries}
-=========
-{history}
-
-QUESTION: {question}
-FINAL ANSWER in Markdown: """
-
-
-
-    prompt = PromptTemplate(
-        input_variables=[ "history", "question", "summaries"], 
-        template=template
-    )
+    
 
 
 
@@ -110,30 +88,63 @@ FINAL ANSWER in Markdown: """
     ######## 
     
     llmx=CONFIG.get("LLM_MODEL",None) # "openai:text-davinci-003" "cohere:xlarge"
-    if llmx!=None: llm_name,model_name=llmx.split(":")
+    if llmx!=None: 
+        if ":" in llmx:
+            llm_name,model_name=llmx.split(":")
+        else:
+            llm_name,model_name=llmx.split(".")
+
+
+
+    template = ""
+    template_path="prompts/"+llm_name+"."+model_name+".txt"
+    if not os.path.exists(template_path):
+        template_path="prompts/openai.text-davinci-003.txt"
+    
+    with open(template_path, "r") as f:
+        template=f.read()
+
+    prompt = PromptTemplate(
+        input_variables=[ "history", "question", "summaries"], 
+        template=template
+    )
 
     llm=None
+    history_length=700
     if llm_name=="openai":
+        max_tokens=512
+        temperature=0.0
+        if model_name=="text-davinci-003":
+            max_tokens=-1
+        elif model_name=="code-davinci-002":
+            max_tokens=1024
+            #history_length=1024            
         llm=OpenAI(
-            temperature=0.0,
+            temperature=temperature,
             model_name=model_name,
-            max_tokens=1800 if model_name=="text-davinci-003" else 512,
+            max_tokens=max_tokens,
         )
     elif llm_name=="cohere":
         llm=Cohere(
-            model_name=model_name,
+            model=model_name,
+            max_tokens=700
         ) 
+        history_length=200
     elif llm_name=="ai21":
         llm=AI21(
             temperature=0.7,
             model=model_name,
         )   
+    elif llm_name=="nlpcloud":
+        llm=NLPCloud(
+            model_name=model_name,
+        )
     else:
         raise Exception("Unknown LLM "+llm_name)
 
     print("Use model ",model_name,"from",llm_name)
 
-    memory=ConversationSummaryBufferMemory(llm=llm, max_token_limit=700,human_prefix="QUESTION",ai_prefix="ANSWER", memory_key="history", input_key="question")
+    memory=ConversationSummaryBufferMemory(llm=llm, max_token_limit=history_length,human_prefix="QUESTION",ai_prefix="ANSWER", memory_key="history", input_key="question")
     chain = load_qa_with_sources_chain(
         llm,
         memory=memory, 
@@ -153,7 +164,7 @@ def queryCache(wordSalad,shortQuestion,cacheConf):
         else:
             nextI=i+1
             text=wordSalad+" "+shortQuestion if nextI==len(cacheConf)-2 else levels[i+1][2]
-            text=Summary.summarizeText(text,min_length=l,max_length=l)
+            text=Summary.summarizeText(text,min_length=l,max_length=l,fast=True)
         embedding=EmbeddingsManager.new(text,"gpu")
         levels[i]=(embedding,cacheConf[i][1],text,EmbeddingsManager.embedding_function(embedding, text))
     
@@ -216,7 +227,7 @@ def queryCache(wordSalad,shortQuestion,cacheConf):
 
             
 
-
+    
 
 
 
@@ -241,7 +252,7 @@ def queryChain(chain,question):
     output=None
     writeInCache=None
     if CONFIG.get("SMART_CACHE",None)!=None:
-        cacheOutput=queryCache(wordSalad,shortQuestion,CONFIG.get("SMART_CACHE",None))
+        cacheOutput=utils.enqueue(lambda: queryCache(wordSalad,shortQuestion,CONFIG.get("SMART_CACHE",None)))
         if cacheOutput["answer"]!=None:
             output=cacheOutput["answer"]
         writeInCache=cacheOutput["writeAnswer"]

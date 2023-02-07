@@ -7,25 +7,43 @@ from langchain.utils import get_from_dict_or_env
 from sentence_transformers import SentenceTransformer
 import torch
 import numpy as np
-
+import threading
 EMBEDDING_CACHE={}
 class TorchEmbeddings( Embeddings):
-    def preload(self):
-        print("Preloading MiniLM L6 v2")
-        model = SentenceTransformer('sentence-transformers/paraphrase-MiniLM-L6-v2')
-        print("Done")
-
-
-    models={}
-    def __init__(self, device):
+    @staticmethod
+    def preload(device):
         isGpuDevice=device=="cuda" or device=="gpu"
         if isGpuDevice and  not torch.cuda.is_available():
             print("WARNING: GPU device requested but not available")
+        print("Preloading MiniLM L6 v2")
+        parallel=1
+        TorchEmbeddings.torch_device='cuda' if isGpuDevice and torch.cuda.is_available() else 'cpu'
+        TorchEmbeddings.models=[
+            SentenceTransformer('sentence-transformers/paraphrase-MiniLM-L6-v2',device=TorchEmbeddings.torch_device)
+            for i in range(0,parallel)
+        ]
 
-        self.torch_device='cuda' if isGpuDevice and torch.cuda.is_available() else 'cpu'
-        if not self.torch_device in TorchEmbeddings.models:
-            TorchEmbeddings.models[self.torch_device]=SentenceTransformer('sentence-transformers/paraphrase-MiniLM-L6-v2',device=self.torch_device)    
-        self.model=TorchEmbeddings.models[self.torch_device]
+        print("Done")
+
+    torch_device=0
+    models=[]
+    modelI=0
+    modelLock=threading.Lock()
+    model=None
+    def __init__(self, device):
+        self.torch_device=TorchEmbeddings.torch_device
+        self.model=None
+        with TorchEmbeddings.modelLock:
+            self.model=TorchEmbeddings.models[TorchEmbeddings.modelI]
+            TorchEmbeddings.modelI+=1
+            if TorchEmbeddings.modelI>=len(TorchEmbeddings.models): 
+                TorchEmbeddings.modelI=0
+
+
+        # self.torch_device='cuda' if isGpuDevice and torch.cuda.is_available() else 'cpu'
+        # if not self.torch_device in TorchEmbeddings.models:
+        #     TorchEmbeddings.models[self.torch_device]=SentenceTransformer('sentence-transformers/paraphrase-MiniLM-L6-v2',device=self.torch_device)    
+        
    
 
     def _embedding_func(self, text: str, *, engine: str) -> List[float]:

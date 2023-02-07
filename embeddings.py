@@ -12,8 +12,11 @@ import gc
 from OpenAICachedEmbeddings import OpenAICachedEmbeddings
 import faiss
 import hashlib
+from threading import Lock
 import copy,gzip
+import bz2
 import os
+
 # Group 0 = cache and gpu
 # Group 1 = not cache, gpu
 # Group -1 = not cache, not gpu
@@ -41,7 +44,7 @@ class EmbeddingsManager:
     @staticmethod
     def init(CONFIG):
         EmbeddingsManager.CONFIG=CONFIG
-        EmbeddingsManager.preload()
+        EmbeddingsManager.preload(CONFIG)
         EmbeddingsManager.LOAD_CACHE={}
         EmbeddingsManager.GPU_CACHE={}
         EmbeddingsManager.GPU_RESOURCES=None
@@ -49,16 +52,18 @@ class EmbeddingsManager:
         if useGpu:
             EmbeddingsManager.GPU_RESOURCES=faiss.StandardGpuResources()
 
+   
+
     @staticmethod
     def _toDevice(f,group=0):
         if EmbeddingsManager.GPU_RESOURCES==None or not EmbeddingsManager._withGpu(group):
-            return f
+            return [f,lambda: None]
         else:
             if not group in EmbeddingsManager.GPU_CACHE:
                 EmbeddingsManager.GPU_CACHE[group]={}
             cache=EmbeddingsManager.GPU_CACHE[group]
             if hash(f) in cache:
-                return cache[hash(f)]
+                return [cache[hash(f)],lambda: None]
             else:
                 gpuIndex=copy.copy(f)
                 internalIndex=gpuIndex.index
@@ -66,14 +71,22 @@ class EmbeddingsManager:
                 gpuIndex.index=internalIndexToGpu
                 if EmbeddingsManager._withCache(group):
                     cache[hash(f)]=gpuIndex
-                return gpuIndex
+                    return [gpuIndex,lambda: None]
+                else:
+                    def release():
+                        nonlocal gpuIndex
+                        internalIndexToGpu.reset()
+                        del gpuIndex
+                    return [gpuIndex,release]
+               
 
 
 
 
     @staticmethod
-    def preload():
-        TorchEmbeddings("cpu").preload()
+    def preload(CONFIG):
+        device=CONFIG.get("DEVICE","cpu")
+        TorchEmbeddings.preload(device)
    
     @staticmethod
     def new(doc,backend="openai"):
@@ -122,7 +135,7 @@ class EmbeddingsManager:
 
 
     @staticmethod
-    def _newOpenAI(doc):
+    def _newOpenAI(doc):        
         source_chunks = []
 
         splitter = CharacterTextSplitter(
@@ -172,8 +185,9 @@ class EmbeddingsManager:
             with open(path, 'wb') as f:      
                 pickle.dump(embed, f)
         else:
-            with gzip.open(path, 'wb', compresslevel=9) as f:
+            with bz2.BZ2File(path,"wb") as f: 
                 pickle.dump(embed, f)
+
 
     @staticmethod
     def read(path, group=0):
@@ -181,8 +195,7 @@ class EmbeddingsManager:
             return EmbeddingsManager.LOAD_CACHE[path]
         compressed=path.endswith("Z")
         
-        f=open(path, 'rb') if not compressed else gzip.open(path, 'rb')
-       
+        f=open(path, 'rb') if not compressed else bz2.BZ2File(path, "rb")
         print("Loading from disk",path,"...")
         out = pickle.load(f)
         f.close()
@@ -194,6 +207,7 @@ class EmbeddingsManager:
         
         return out
         
+
 
     @staticmethod
     def queryIndex(index,query,k=4, cache=None, group=0):
@@ -209,7 +223,7 @@ class EmbeddingsManager:
         else:
             embedding=query
         
-        index=EmbeddingsManager._toDevice(index,group)
+        [index,release]=EmbeddingsManager._toDevice(index,group)
         scores, indices = index.index.search(np.array([embedding], dtype=np.float32), k=k)
         docs = []
         for j, i in enumerate(indices[0]):
@@ -221,20 +235,23 @@ class EmbeddingsManager:
             if not isinstance(doc, Document):
                 raise ValueError(f"Could not find document for id {_id}, got {doc}")
             docs.append((doc, scores[0][j]))
+        if release is not None: release()
         return docs
+
 
     def query(indices, query, n=3, k=6,cache=None,group=0):
         results=[]
-        if cache==None: 
-            cache={}
-        i=0
         print("Searching",len(indices),"embeddings...")
         # if query is array
         if not isinstance(query, list):
             query=[query]
+
         for q in query:
+           
+            print("Compute embedding for query")
+            embedding =  EmbeddingsManager.embedding_function(indices[0], q)
             for index in indices:
-                res=EmbeddingsManager.queryIndex(index,q, k=k, cache=cache,group=group),
+                res=EmbeddingsManager.queryIndex(index,embedding, k=k, cache=None,group=group),
                 for res2 in res:
                     for rdoc in res2:
                         score=rdoc[1]
@@ -242,18 +259,9 @@ class EmbeddingsManager:
                             "doc": rdoc[0],
                             "score": score
                         })       
-        
-                i+=1
-                if i>=100:
-                    i=0
-                    gc.collect() 
+
+
         best= sorted(results, key=lambda x: x["score"], reverse=False)[:n]
         #best[::-1]   
-        
-        cache.clear()        
-
-
-
-        gc.collect()
-        gc.collect()
+      
         return [ x["doc"] for x in best]
