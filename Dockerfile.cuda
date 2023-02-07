@@ -78,10 +78,10 @@ conda init bash &&\
 conda env create  -f environment.yml &&\
 conda activate jmebot&&\
 conda update --yes -n base -c defaults conda &&\
-pip install --yes --upgrade pip &&\
+pip install  --upgrade pip &&\
 conda install --yes -c nvidia  cuda-toolkit==11.7 libopenblas pytorch-cuda=11.7 pytorch==1.13.1  -c pytorch  &&\
 pip uninstall -y torch &&\
-pip install -y torch==1.13.1 --extra-index-url https://download.pytorch.org/whl/cu117 &&\
+pip install  torch==1.13.1 --extra-index-url https://download.pytorch.org/whl/cu117 &&\
 pip --verbose install -r requirements.txt &&\
 cd /tmp/faiss-build &&\
 python3 setup.py build &&\
