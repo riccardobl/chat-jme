@@ -373,4 +373,4 @@ def serveIndex():
 
 
 
-serve(app, host="0.0.0.0", port=8080)
+serve(app, host="0.0.0.0", port=8080, connection_limit=1000)
