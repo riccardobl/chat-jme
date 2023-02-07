@@ -248,8 +248,14 @@ class EmbeddingsManager:
         if len(indices)>0:
             for q in query:            
                 print("Compute embedding for query")
-                embedding =  EmbeddingsManager.embedding_function(indices[0], q)
+                embeddings={}
                 for index in indices:
+                    generator=index.embedding_function.__qualname__.split(".")[0]
+                    embedding=None
+                    if generator not in embeddings:
+                        embeddings[generator]= embedding= EmbeddingsManager.embedding_function(index, q)
+                    else:
+                        embedding=embeddings[generator]
                     res=EmbeddingsManager.queryIndex(index,embedding, k=k, cache=None,group=group),
                     for res2 in res:
                         for rdoc in res2:
