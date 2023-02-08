@@ -1,0 +1,18 @@
+{
+    "files.exclude": {
+        "**/.git": true,
+        "**/.svn": true,
+        "**/.hg": true,
+        "**/CVS": true,
+        "**/.DS_Store": true,
+        "**/Thumbs.db": true,
+        "cache/ingest":true
+    },
+    "search.exclude": {
+        "cache/ingest":true
+    },
+    "files.watcherExclude": {
+        "cache":true,
+        "embeddings":true,
+    },
+}
