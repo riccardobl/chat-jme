@@ -20,7 +20,7 @@ To provide the functionality of the bot, the following libraries are used:
 - [🦜🔗 LangChain](https://github.com/hwchase17/langchain): to interface with GPT-3
 - [🤗 HuggingFace](https://huggingface.co/): inference libraries and models
 - [OpenAI apis](https://openai.com/api/): LLM for text generation
-- ~~[MiniLM L6 v2](https://huggingface.co/sentence-transformers/paraphrase-MiniLM-L6-v2): fast embeddings ~~
+- [~~MiniLM L6 v2~~](https://huggingface.co/sentence-transformers/paraphrase-MiniLM-L6-v2): ~~fast embeddings~~
 - [all-mpnet-base-v2](https://huggingface.co/sentence-transformers/all-mpnet-base-v2): embeddings 
 - [Flan-t5-base-samsum](https://huggingface.co/philschmid/flan-t5-base-samsum): Summarization 
 - [Sumy](https://github.com/miso-belica/sumy): Alternative summarization 
@@ -43,7 +43,7 @@ Static embeddings are updated periodically and stored in the [embeddings/](embed
 - [ ] [Lemur source code]()
 - [x] [Zay-ES wiki](https://github.com/jMonkeyEngine-Contributions/zay-es/wiki)
 - [ ] [Zay-ES source code]()
-- [x][Monkey-Droid/jme3-Simple-Examples](https://github.com/Monkey-Droid/jme3-Simple-Examples)
+- [x] [Monkey-Droid/jme3-Simple-Examples](https://github.com/Monkey-Droid/jme3-Simple-Examples)
 
 ### Dynamic embeddings
 Dynamic embeddings are generated on the fly for the requested information.
