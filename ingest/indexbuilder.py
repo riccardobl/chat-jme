@@ -48,29 +48,9 @@ class IndexBuilder :
                 print("Already processed", doc.metadata["source"])
                 return
 
-            # source_chunks = []
-            # splitter = CharacterTextSplitter(
-            #     separator="\n",
-            #     chunk_size=1000,
-            #     chunk_overlap=200,
-            #     length_function=len,
-            # )
 
-            # for chunk in splitter.split_text(doc.page_content):
-            #     source_chunks.append(Document(page_content=chunk, metadata=doc.metadata))
-            
-            # faiss=EmbeddingsManager.new(source_chunks)
+            faiss=EmbeddingsManager.new(doc,backend="gpu")
 
-            faiss=EmbeddingsManager.new(doc)
-            #source_chunks = [source_chunks[i:i + 50] for i in range(0, len(source_chunks), 50)]
-
-            #faisss=[]
-            #for ss in source_chunks:
-                #print("Processing", len(ss),"chunks")
-                #faiss=Embeddings.new(ss)
-                #faisss.append(faiss)
-
-            #faiss=Embeddings.merge(faisss)
             EmbeddingsManager.write(embedPath, faiss)          
 
             print ("Updated",  doc.metadata["source"])

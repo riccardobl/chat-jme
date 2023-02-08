@@ -119,4 +119,5 @@ confiFile=args[1] if len(args)>1 else "config.json"
 print("Use config file", confiFile)
 with open(confiFile, "r") as f:
     config=json.load(f)     
+    EmbeddingsManager.init(config)
     ingest(config)
