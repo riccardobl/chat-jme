@@ -47,7 +47,7 @@ def ingest(config) :
     qs=source.Source(config,{
         "unit":"jmonkeyengine-github",
         "triggerWords":[]   
-    },"https://github.com/jMonkeyEngine/jmonkeyengine.git","jmonkeyengine",{
+    },"jMonkeyEngine/jmonkeyengine","master",{
         "java":["java","md"]
     })
     docs.extend(qs.updateIndex())
@@ -56,7 +56,7 @@ def ingest(config) :
     qs=source.Source(config,{
         "unit":"jmonkeyengine-github-shaders",
         "triggerWords":["shader","glsl"]   
-    },"https://github.com/jMonkeyEngine/jmonkeyengine.git","jmonkeyengine",{
+    },"jMonkeyEngine/jmonkeyengine","master",{
         "shader":[
             "glsl",
             "glsllib",
@@ -71,7 +71,7 @@ def ingest(config) :
     qs=source.Source(config,{
         "unit":"jmonkeyengine-github-gradle",
         "triggerWords":["gradle","build","buildscript","compile","dependencies"]   
-    },"https://github.com/jMonkeyEngine/jmonkeyengine.git","jmonkeyengine",{
+    },"jMonkeyEngine/jmonkeyengine","master",{
         "gradle":[
             "gradle"
         ]
@@ -107,7 +107,7 @@ def ingest(config) :
     qs=source.Source(config,{
         "unit":"Monkey-Droid-github",
         "triggerWords":["android","mobile","phone"]   
-    },"https://github.com/Monkey-Droid/jme3-Simple-Examples","jme3-Simple-Examples",{
+    },"Monkey-Droid/jme3-Simple-Examples","master",{
         "java":[
             "java","md"
         ]
