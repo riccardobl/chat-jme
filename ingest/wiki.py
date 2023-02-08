@@ -64,7 +64,7 @@ class Wiki(indexbuilder.IndexBuilder):
                         articlesFull+="\n"+text
 
                     articlesFull = "\n".join([t for t in articlesFull.split("\n") if t])
-                    hash=hashlib.sha256(articlesFull.encode('utf-8')).hexdigest()    
+                    hash=self._getDocId(content)
                     doc = Document(page_content=articlesFull, metadata={"source": link, "hash":hash})
                     yield doc
                     break

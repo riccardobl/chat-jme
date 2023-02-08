@@ -32,30 +32,36 @@ def ingest(config) :
     # Parse wiki
     qs=wiki.Wiki(config,{
         "unit":"jmonkeyengine-wiki",
-        "triggerWords":[]
+        "triggerWords":[],
+        "merged":True
     },"https://wiki.jmonkeyengine.org/docs/3.4","documentation.html"," jMonkeyEngine Wiki")
     docs.extend(qs.updateIndex())
       
     # Parse Website
     qs=website.Website(config,{
         "unit":"jmonkeyengine-home",
-        "triggerWords":[]
+        "triggerWords":[],
+        "merged":True
+
     })
     docs.extend(qs.updateIndex())
 
     # Parse source
     qs=source.Source(config,{
         "unit":"jmonkeyengine-github",
-        "triggerWords":[]   
+        "triggerWords":[],
+        "merged":True
     },"jMonkeyEngine/jmonkeyengine","master",{
-        "java":["java","md"]
+        "java":["java"],
+        "markdown":["md"]
     })
     docs.extend(qs.updateIndex())
 
     # Parse source (shaders)
     qs=source.Source(config,{
         "unit":"jmonkeyengine-github-shaders",
-        "triggerWords":["shader","glsl"]   
+        "triggerWords":["shader","glsl"],
+        "merged":True  
     },"jMonkeyEngine/jmonkeyengine","master",{
         "shader":[
             "glsl",
@@ -70,7 +76,8 @@ def ingest(config) :
     # Parse source (gradle)
     qs=source.Source(config,{
         "unit":"jmonkeyengine-github-gradle",
-        "triggerWords":["gradle","build","buildscript","compile","dependencies"]   
+        "triggerWords":["gradle","build","buildscript","compile","dependencies"]   ,
+        "merged":True
     },"jMonkeyEngine/jmonkeyengine","master",{
         "gradle":[
             "gradle"
@@ -81,7 +88,8 @@ def ingest(config) :
     # Parse minie wiki
     qs=wiki.Wiki(config,{
         "unit":"minie-wiki",
-        "triggerWords":["minie"]
+        "triggerWords":["minie"],
+        "merged":True
     },"https://stephengold.github.io/Minie/minie","overview.html","The Minie project")
     docs.extend(qs.updateIndex())
 
@@ -89,7 +97,8 @@ def ingest(config) :
     # Parse lemur wiki
     qs=wiki.Wiki(config,{
         "unit":"lemur-wiki",
-        "triggerWords":[]
+        "triggerWords":[],
+        "merged":True
     },"https://github.com/jMonkeyEngine-Contributions/Lemur/wiki","Getting-Started","Lemur")
     docs.extend(qs.updateIndex())
 
@@ -97,7 +106,8 @@ def ingest(config) :
     # Parse zayes wiki
     qs=wiki.Wiki(config,{
         "unit":"zayes-wiki",
-        "triggerWords":["zay-es","zayes","ecs","entity-component-system","entity system","entity component system"]
+        "triggerWords":["zay-es","zayes","ecs","entity-component-system","entity system","entity component system"],
+        "merged":True
     },"https://github.com/jMonkeyEngine-Contributions/zay-es/wiki","Documentation","Zay-ES")
     docs.extend(qs.updateIndex())
     
@@ -106,13 +116,20 @@ def ingest(config) :
     #parse Monkey-Droid
     qs=source.Source(config,{
         "unit":"Monkey-Droid-github",
-        "triggerWords":["android","mobile","phone"]   
+        "triggerWords":["android","mobile","phone"] ,
+        "merged":True
     },"Monkey-Droid/jme3-Simple-Examples","master",{
         "java":[
-            "java","md"
+            "java"
+        ],
+        "markdown":[
+            "md"
         ]
     })
     docs.extend(qs.updateIndex())
+
+
+    print("Completed!")
 
 args=sys.argv
 confiFile=args[1] if len(args)>1 else "config.json"

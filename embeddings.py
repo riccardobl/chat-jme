@@ -6,7 +6,6 @@ from langchain.docstore.document import Document
 import numpy as np
 import time
 from langchain.text_splitter import CharacterTextSplitter
-from TorchEmbeddings import TorchEmbeddings
 import utils
 import gc
 from OpenAICachedEmbeddings import OpenAICachedEmbeddings
@@ -16,7 +15,7 @@ from threading import Lock
 import copy,gzip
 import bz2
 import os
-
+from TorchEmbeddings import TorchEmbeddings
 # Group 0 = cache and gpu
 # Group 1 = not cache, gpu
 # Group -1 = not cache, not gpu
@@ -44,14 +43,14 @@ class EmbeddingsManager:
     @staticmethod
     def init(CONFIG):
         EmbeddingsManager.CONFIG=CONFIG
-        EmbeddingsManager.preload(CONFIG)
         EmbeddingsManager.LOAD_CACHE={}
         EmbeddingsManager.GPU_CACHE={}
         EmbeddingsManager.GPU_RESOURCES=None
         useGpu=EmbeddingsManager.CONFIG["DEVICE"]=="cuda" or EmbeddingsManager.CONFIG["DEVICE"]=="gpu"
         if useGpu:
             EmbeddingsManager.GPU_RESOURCES=faiss.StandardGpuResources()
-
+        device=CONFIG.get("DEVICE","cpu")
+        TorchEmbeddings.init(device)
    
 
     @staticmethod
@@ -82,60 +81,49 @@ class EmbeddingsManager:
 
 
 
-
-    @staticmethod
-    def preload(CONFIG):
-        device=CONFIG.get("DEVICE","cpu")
-        TorchEmbeddings.preload(device)
+ 
+        
    
     @staticmethod
-    def new(doc,backend="openai"):
+    def new(docs,backend="openai"):
         
-        if isinstance(doc, str):
-            metadata={"source": "", "hash": hashlib.sha256(doc.encode('utf-8')).hexdigest()}
-            doc=Document(page_content=doc, metadata=metadata)
+           
+        if not isinstance(docs, list):
+            docs=[docs]
+        
+        docs=copy.copy(docs)
+        for i in range(len(docs)):
+            if isinstance(docs[i], str):
+                metadata={"source": "", "hash": ""}
+                docs[i]=Document(page_content=docs[i], metadata=metadata)
+        
 
         if backend=="openai":
-            return EmbeddingsManager._newOpenAI(doc)
+            return EmbeddingsManager._newOpenAI(docs)
         else: 
-            return EmbeddingsManager._newTorch(doc,backend)
+            return EmbeddingsManager._newTorch(docs,backend)
 
     @staticmethod
-    def _newTorch(doc,backend):
+    def _newTorch(docs,backend):
         source_chunks = []
         splitter = CharacterTextSplitter(
             separator="\n",
-            chunk_size=1000,
-            chunk_overlap=200,
+            chunk_size=1500,
+            chunk_overlap=1000,
             length_function=len,
         )
-        for chunk in splitter.split_text(doc.page_content):
-            source_chunks.append(Document(page_content=chunk, metadata=doc.metadata))          
+        for doc in docs:
+            for chunk in splitter.split_text(doc.page_content):
+                source_chunks.append(Document(page_content=chunk, metadata=doc.metadata))          
         try:
-            l=40
-            source_chunks = [source_chunks[i:i + l] for i in range(0, len(source_chunks), l)]
-            if len(source_chunks)==0:
-                source_chunks.append(Document(page_content="", metadata=doc.metadata))          
-
-            print("Processing", len(source_chunks),"chunks")               
-            print("Create index with",len(source_chunks[0]),"tokens")
-            faiss=FAISS.from_documents(source_chunks[0], TorchEmbeddings(backend))
-            if faiss==None:
-                raise Exception("Error creating index")
-            if len(source_chunks)>1:
-                for i in range(1,len(source_chunks)):
-                    documents=source_chunks[i]
-                    print("Add",len(documents),"tokens")
-                    texts = [d.page_content for d in documents]
-                    metadatas = [d.metadata for d in documents]
-                    faiss.add_texts(texts,metadatas)       
+            faiss=FAISS.from_documents(source_chunks, TorchEmbeddings())     
             return faiss                 
         except Exception as e:
             print(e)
 
 
     @staticmethod
-    def _newOpenAI(doc):        
+    def _newOpenAI(docs):        
         source_chunks = []
 
         splitter = CharacterTextSplitter(
@@ -144,9 +132,9 @@ class EmbeddingsManager:
             chunk_overlap=200,
             length_function=len,
         )
-
-        for chunk in splitter.split_text(doc.page_content):
-            source_chunks.append(Document(page_content=chunk, metadata=doc.metadata))
+        for doc in docs:
+            for chunk in splitter.split_text(doc.page_content):
+                source_chunks.append(Document(page_content=chunk, metadata=doc.metadata))
         
         try:
             l=40
@@ -175,6 +163,12 @@ class EmbeddingsManager:
         if index.embedding_function.__qualname__.startswith("OpenAIEmbeddings."): # Migrate to cached embeddings
             index.embedding_function=OpenAICachedEmbeddings(cachePath=os.path.join(EmbeddingsManager.CONFIG["CACHE_PATH"],"openaiembeddings")).embed_query
         return utils.retry(lambda:index.embedding_function(query))
+
+    
+    @staticmethod
+    def embedding_function2(index, queries):
+        t=TorchEmbeddings()
+        return t._embedding_func2(queries)
   
     @staticmethod
     def write(path,embed):
@@ -183,10 +177,10 @@ class EmbeddingsManager:
             raise Exception("Can't write None")
         if not compressed:       
             with open(path, 'wb') as f:      
-                pickle.dump(embed, f)
+                pickle.dump(embed, f, protocol=pickle.HIGHEST_PROTOCOL)
         else:
             with bz2.BZ2File(path,"wb") as f: 
-                pickle.dump(embed, f)
+                pickle.dump(embed, f, protocol=pickle.HIGHEST_PROTOCOL)
 
 
     @staticmethod
@@ -239,7 +233,7 @@ class EmbeddingsManager:
         return docs
 
 
-    def query(indices, query, n=3, k=6,cache=None,group=0):
+    def query(indices, query, n=6, k=12,cache=None,group=0):
         results=[]
         print("Searching",len(indices),"embeddings...")
         # if query is array
@@ -247,7 +241,7 @@ class EmbeddingsManager:
             query=[query]
         if len(indices)>0:
             for q in query:            
-                print("Compute embedding for query")
+                print("Compute embedding for query",query)
                 embeddings={}
                 for index in indices:
                     generator=index.embedding_function.__qualname__.split(".")[0]
@@ -260,13 +254,20 @@ class EmbeddingsManager:
                     for res2 in res:
                         for rdoc in res2:
                             score=rdoc[1]
-                            results.append({
-                                "doc": rdoc[0],
-                                "score": score
-                            })       
+                            found=False
+                            for r in results:
+                                if r["doc"]==rdoc[0]:                        
+                                    found=True
+                                    break
+                            if not found:
+                                results.append({
+                                    "doc": rdoc[0],
+                                    "score": score
+                                })       
 
+
+        
 
         best= sorted(results, key=lambda x: x["score"], reverse=False)[:n]
-        #best[::-1]   
-      
+    
         return [ x["doc"] for x in best]

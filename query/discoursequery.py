@@ -82,7 +82,7 @@ class DiscourseQuery( basequery.BaseQuery):
                 data=getData()
                 initialQuestion=data["title"]+"\n"+data["post_stream"]["posts"][0]["cooked"]
                 initialQuestion=Summary.summarizeHTML(initialQuestion,max_length=256)
-                print("Question:",initialQuestion)
+                #print("Question:",initialQuestion)
                 v=EmbeddingsManager.new(Document(page_content=initialQuestion),self.CONFIG["DEVICE"])
                 EmbeddingsManager.write(questionPath,v)
                 return v
@@ -117,7 +117,7 @@ class DiscourseQuery( basequery.BaseQuery):
                         c+="\n\nANSWER:\n"                
                     c+=contentPart
                     contentPart=""    
-                    print("Content",c)
+                    #print("Content",c)
                     content.append(c)                    
                 for post in posts:
                     postAuthorId=post["user_id"]
@@ -226,11 +226,12 @@ class DiscourseQuery( basequery.BaseQuery):
             topics= [Document(page_content=mergedTopic, metadata={"source": f"{discourseUrl}/search", "hash":""})]
         return topics
 
-    def getAffineDocs(self, question, context, keywords, shortQuestion,  wordSalad=None, unitFilter=None):
+    def getAffineDocs(self, question, context, keywords, shortQuestion,  wordSalad=None, unitFilter=None,
+            maxFragmentsToReturn=3, maxFragmentsToSelect=6, merge=False):
         seachTerms=[]
         #seachTerms.append(question)
         seachTerms.extend(keywords)
         seachTerms=seachTerms[:3]
         #return self._search(seachTerms,question)        
-        return utils.enqueue(lambda: self._search(seachTerms,question))
+        return  self._search(seachTerms,question)
 

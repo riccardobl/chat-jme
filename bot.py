@@ -53,14 +53,20 @@ with open(confiFile, "r") as f:
     ]
     Translator.init(CONFIG)
 
-def getAffineDocs(question,context,keywords,shortQuestion, wordSalad=None, unitFilter=None):
+def getAffineDocs(question,context,keywords,shortQuestion, wordSalad=None, unitFilter=None,
+    maxFragmentsToReturn=5, maxFragmentsToSelect=12,merge=False):
     affineDocs=[]
 
    
     for q in QUERIERS:
         print("Get affine docs from",q,"using question",question,"with context",context,"and keywords",keywords)
         t=time.time()
-        v=q.getAffineDocs(question, context, keywords,shortQuestion, wordSalad, unitFilter)
+        v=q.getAffineDocs(
+            question, context, keywords,shortQuestion, wordSalad, unitFilter,
+            maxFragmentsToReturn=maxFragmentsToReturn,
+            maxFragmentsToSelect=maxFragmentsToSelect,
+            merge=merge        
+        )
         print("Completed in",time.time()-t,"seconds.")
         if v!=None:
             affineDocs.extend(v)
@@ -165,9 +171,14 @@ def queryCache(wordSalad,shortQuestion,cacheConf):
             nextI=i+1
             text=wordSalad+" "+shortQuestion if nextI==len(cacheConf)-2 else levels[i+1][2]
             text=Summary.summarizeText(text,min_length=l,max_length=l,fast=True)
-        embedding=EmbeddingsManager.new(text,"gpu")
-        levels[i]=(embedding,cacheConf[i][1],text,EmbeddingsManager.embedding_function(embedding, text))
-    
+        levels[i]=[None,cacheConf[i][1],text,999999]
+    embeds=[l[2] for l in levels]
+    e2=EmbeddingsManager.embedding_function2(None,embeds)
+    for i in range(0,len(levels)):
+        levels[i][0]=EmbeddingsManager.new(levels[i][2],"gpu") # TODO: make this parallel
+        levels[i][3]=e2[i]
+
+
     cachePath=os.path.join(CONFIG["CACHE_PATH"],"smartcache")  
     if not os.path.exists(cachePath):
         os.makedirs(cachePath)
@@ -228,22 +239,31 @@ def queryCache(wordSalad,shortQuestion,cacheConf):
             
 
     
-
-
-
-def queryChain(chain,question):
+def extractQuestionData(question,wordSalad):
     shortQuestion=Summary.summarizeMarkdown(question,min_length=100,max_length=1024,withCodeBlocks=False)
 
-    wordSalad=""
-    for h in chain.memory.buffer: wordSalad+=h+" "
-    wordSalad+=" "+question
-        
     context=Summary.summarizeText(wordSalad,min_length=20,max_length=32)
     keywords=[]
     keywords.extend(Summary.getKeywords(shortQuestion,2))
     keywords.extend(Summary.getKeywords(Summary.summarizeText(wordSalad,min_length=10,max_length=20),3))
 
-    affineDocs=getAffineDocs(question,context,keywords,shortQuestion,wordSalad)
+    return [question,shortQuestion,context,keywords,wordSalad]
+
+
+def queryChain(chain,question):
+    # shortQuestion=Summary.summarizeMarkdown(question,min_length=100,max_length=1024,withCodeBlocks=False)
+
+    wordSalad=""
+    for h in chain.memory.buffer: wordSalad+=h+" "
+    wordSalad+=" "+question
+    
+    [question,shortQuestion,context,keywords,wordSalad]=utils.enqueue(lambda :extractQuestionData(question,wordSalad))
+    # context=Summary.summarizeText(wordSalad,min_length=20,max_length=32)
+    # keywords=[]
+    # keywords.extend(Summary.getKeywords(shortQuestion,2))
+    # keywords.extend(Summary.getKeywords(Summary.summarizeText(wordSalad,min_length=10,max_length=20),3))
+
+    affineDocs=utils.enqueue(lambda :getAffineDocs(question,context,keywords,shortQuestion,wordSalad))
     print("Found ",len(affineDocs), " affine docs")
         
     
@@ -369,8 +389,26 @@ def serveFrontend(filename):
 def serveIndex():
     return send_from_directory('frontend/', "index.html")
 
-
-
+@app.route('/docs', methods=['POST'])
+def docs():
+    body=request.get_json()
+    question=body["question"]
+    maxFragmentsToReturn=int(body.get("maxFragmentsToReturn",3))
+    maxFragmentsToSelect=int(body.get("maxFragmentsToReturn",6))
+    wordSalad=body.get("context","")+" "+question
+    [question,shortQuestion,context,keywords,wordSalad]=utils.enqueue(lambda : extractQuestionData(question,wordSalad))
+    affineDocs=utils.enqueue(lambda : getAffineDocs(
+        question,context,keywords,shortQuestion,wordSalad,
+        maxFragmentsToReturn=maxFragmentsToReturn,
+        maxFragmentsToSelect=maxFragmentsToSelect
+    ))
+    plainDocs=[
+        {
+            "content":doc.page_content,
+            "metadata":doc.metadata
+        } for doc in affineDocs
+    ]
+    return json.dumps(plainDocs)
 
 
 serve(app, host="0.0.0.0", port=8080, connection_limit=1000)

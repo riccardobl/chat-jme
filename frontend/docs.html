@@ -1,0 +1,120 @@
+<!DOCTYPE html>
+<html>
+    <head>
+        <meta charset="utf-8">
+        <title>jMonkeyEngine - DOC Query</title>
+        <script src="https://cdnjs.cloudflare.com/ajax/libs/marked/4.2.12/marked.min.js" integrity="sha512-uwSxMaa/W7dmSIXEd07BMVymisMRRUS/Pr5a76AquekKKu9HWn4rBiCd+ZtwqnoijAJvttdrz8krzP26kZjg0Q==" crossorigin="anonymous" referrerpolicy="no-referrer"></script>
+        <link rel="stylesheet" href="https://jmonkeyengine.org/css/style.css">
+        <link rel="stylesheet" href="./style.css">
+        <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:opsz,wght,FILL,GRAD@48,400,0,0" />
+        <link rel="preconnect" href="https://fonts.googleapis.com">
+        <script src="https://cdnjs.cloudflare.com/ajax/libs/dompurify/2.4.3/purify.min.js" integrity="sha512-3dcbndbDLLWfKWevQu8C/1qVRcxx6h+eRDSnn3/pcBZHISRJgsj3u71U/Ad6nQVHrEi05hOSr6Hnb/p0pWc94w==" crossorigin="anonymous" referrerpolicy="no-referrer"></script>
+        <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+        <link href="https://fonts.googleapis.com/css2?family=Itim&display=swap" rel="stylesheet"> 
+        <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=0">
+ 
+        <link rel="stylesheet" href="//cdnjs.cloudflare.com/ajax/libs/highlight.js/11.7.0/styles/atom-one-dark.min.css">
+        <script src="//cdnjs.cloudflare.com/ajax/libs/highlight.js/11.7.0/highlight.min.js"></script>
+        <style>
+            element {
+
+display: flex;
+flex-direction: column;
+align-items: center;
+
+}
+            #results{
+                display:flex;
+                flex-direction:column;
+                align-items:center;
+            }
+            article {
+                background: var(--background4);
+                margin: 1rem;
+                padding: 1rem;
+                border-radius: 0.5rem;
+                box-shadow: 0 0 0.5rem 0.1rem var(--background3);
+            }
+            #form{
+                display: flex;
+                flex-direction: column;
+                align-items: center;
+            }
+            #form > div{
+                display: flex;
+                flex-direction: row;
+                align-items: center;
+            }
+        </style>
+        <script>
+            async function search(){
+                const results=document.querySelector("#results");
+                results.innerHTML="";
+                const maxFragmentsToReturn=document.querySelector("#frr").value;
+                const maxFragmentsToSelect=document.querySelector("#frs").value;
+                const context=document.querySelector("#context").value;
+                const bodyJSON=JSON.stringify({
+                        question:document.querySelector("#question").value,
+                        context:context,
+                        maxFragmentsToReturn:maxFragmentsToReturn?maxFragmentsToReturn:undefined,
+                        maxFragmentsToSelect:maxFragmentsToSelect?maxFragmentsToSelect:undefined
+                },null,4)
+                const queryEl=document.querySelector("#query");
+                queryEl.innerHTML=DOMPurify.sanitize(`<pre><code>POST: ${document.location.origin}/docs\nBody:\n${bodyJSON}</code></pre> `);
+                const statusEl=document.querySelector("#status");
+                statusEl.innerText="Querying...";
+                const res=await fetch("/docs",{
+                    method:"POST",
+                    headers:{
+                        "Content-Type":"application/json"
+                    },
+                    body:bodyJSON
+                }).then(res=>res.json());
+               
+              
+                for(const doc of res){
+                    content=doc["content"]
+                    meta=JSON.stringify(doc["metadata"])
+
+                    const article=document.createElement("article");
+                    results.appendChild(article);
+
+                    content=marked.parse(content);
+                    content=DOMPurify.sanitize(content);
+                    article.innerHTML=content;
+                    article.querySelectorAll("code").forEach(
+                        el=>hljs.highlightElement(el,{
+                            theme:"atom-one-dark"
+                        })
+                    );
+
+                    const metaDiv=document.createElement("div");
+                    metaDiv.classList.add("meta");
+                    metaDiv.innerText=meta;
+                    article.appendChild(metaDiv);
+
+
+                }
+                statusEl.innerText="Done";
+
+
+            }
+        </script>
+    </head>
+    <body>
+        <div id="form">
+            <div>
+                <labe>Question: </labe><input id="question" type="text" value=""/>
+                <labe>Context: </labe><input id="context" type="text" value=""/>
+                <labe>Fragments to Select: </labe><input id="frs" type="number" value="12"/>
+                <labe>Fragments to Return: </labe><input id="frr" type="number" value="6"/>
+                <button onclick="javascript:search()">Search</button>
+            </div>
+            <div id="query"></div>
+            <div id="status"></div>
+
+        </div>
+        <div id="results"></div>
+
+    </body>
+</html>

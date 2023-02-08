@@ -3,6 +3,8 @@ import multiprocessing
 import itertools
 import queue
 import threading
+import atexit
+
 def retry(fun,n=10,initialSleep=10):
     sleep=initialSleep
     for i in range(0,n):
@@ -38,14 +40,21 @@ def enqueue(x):
         raise res
     return res
     
-    
+CLOSE_TASK_RUNNED=False
 def run_tasks():
-    while True:
+    while not CLOSE_TASK_RUNNED:
         task = EXECUTION_QUEUE.get()
+        if task==None: continue
         resQ=task[1]
         task=task[0]
         resQ.put(task())
 
+def closeTaskRunner():
+    global CLOSE_TASK_RUNNED
+    CLOSE_TASK_RUNNED=True
+    EXECUTION_QUEUE.put(None)
 
 worker_thread = threading.Thread(target=run_tasks)
 worker_thread.start()
+
+atexit.register(closeTaskRunner)

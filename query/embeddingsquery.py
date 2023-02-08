@@ -25,12 +25,14 @@ class EmbeddingsQuery(basequery.BaseQuery):
                 for w in info["triggerWords"]:
                     if w.lower() in wordSalad.lower():
                         included=True
+                        print("Found",w,"in",wordSalad)
                         break
             if included:
+                print("Include",unit)
                 path=os.path.join(CONFIG["INDEX_PATH"],unit)
                 parts=[os.path.join(path, file) for file in os.listdir(path)]
                 for part in parts:
-                    if not part.endswith(".bin"): continue
+                    if not part.endswith(".bin") and not part.endswith(".binZ"): continue
                     try:
                         loaded_parts.append(EmbeddingsManager.read(part))
                     except Exception as e:
@@ -39,7 +41,11 @@ class EmbeddingsQuery(basequery.BaseQuery):
         return  loaded_parts
     
 
-    def getAffineDocs(self, question, context, keywords, shortQuestion,  wordSalad=None, unitFilter=None):
+    def getAffineDocs(self, question, context, keywords, shortQuestion,  wordSalad=None, unitFilter=None,
+        maxFragmentsToReturn=6, maxFragmentsToSelect=12, merge=False):
         indices = self._getIndices(wordSalad, unitFilter)
-        return utils.enqueue(lambda: EmbeddingsManager.query(indices,[question,context],group=EmbeddingsManager.GROUP_GPU_CACHE))
+        return   EmbeddingsManager.query(
+            indices,[question,context],group=EmbeddingsManager.GROUP_GPU_CACHE,
+            k=maxFragmentsToSelect,n=maxFragmentsToReturn    
+        )
                 
