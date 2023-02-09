@@ -123,7 +123,7 @@ def createChain():
         max_tokens=512
         temperature=0.0
         if model_name=="text-davinci-003":
-            max_tokens=-1
+            max_tokens=512
         elif model_name=="code-davinci-002":
             max_tokens=1024
             #history_length=1024            
