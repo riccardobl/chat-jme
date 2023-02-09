@@ -33,6 +33,7 @@ import uuid
 from langchain.llms import NLPCloud
 from langchain.llms import AI21
 from langchain.llms import Cohere
+from SmartCache import SmartCache
 CONFIG=None
 QUERIERS=[]
 
@@ -81,6 +82,7 @@ def rewrite(question):
     question=re.sub(r"\b(app|applet|game|application)\b", "simple application", question, flags=re.IGNORECASE)
 
     return question
+
 
 
 def createChain():
@@ -160,83 +162,6 @@ def createChain():
 
     return chain
 
-def queryCache(wordSalad,shortQuestion,cacheConf):    
-    levels=[None]*len(cacheConf)
-    for i in range(len(cacheConf)-1,-1,-1): 
-        text=""
-        l=cacheConf[i][0]
-        if i==(len(cacheConf)-1):
-            text=shortQuestion
-        else:
-            nextI=i+1
-            text=wordSalad+" "+shortQuestion if nextI==len(cacheConf)-2 else levels[i+1][2]
-            text=Summary.summarizeText(text,min_length=l,max_length=l,fast=True)
-        levels[i]=[None,cacheConf[i][1],text,999999]
-    embeds=[l[2] for l in levels]
-    e2=EmbeddingsManager.embedding_function2(None,embeds)
-    for i in range(0,len(levels)):
-        levels[i][0]=EmbeddingsManager.new(levels[i][2],"gpu") # TODO: make this parallel
-        levels[i][3]=e2[i]
-
-
-    cachePath=os.path.join(CONFIG["CACHE_PATH"],"smartcache")  
-    if not os.path.exists(cachePath):
-        os.makedirs(cachePath)
-    for i in range(0,len(levels)):
-        l=levels[i]
-        isLast=i==len(levels)-1
-        foundSub=False
-        for f in os.listdir(cachePath):
-            if not f.endswith(".bin"): continue
-            embeddingPath=os.path.join(cachePath,f)
-            answerPath=embeddingPath.replace(".bin",".json")
-            subPath=embeddingPath.replace(".bin","")
-
-            embedding=EmbeddingsManager.read(embeddingPath,group=EmbeddingsManager.GROUP_GPU)
-            res=EmbeddingsManager.queryIndex(embedding,l[3],k=1,group=EmbeddingsManager.GROUP_GPU)
-            score=res[0][1]
-            print("Score:",score,"level score",l[1])
-            if score<l[1]:
-                print("Found in cache",l[2])
-                if isLast:
-                    print("Return from cache")
-                    if os.path.exists(answerPath):                 
-                        with open(answerPath, "r") as f:
-                            answer=json.load(f)
-                            return {
-                                "answer":answer,
-                                "writeAnswer":lambda x: None                          
-                            }
-                else:
-                    print("Go deeper")
-                    cachePath=subPath
-                    foundSub=True
-                    break
-        if not foundSub:
-            f=uuid.uuid4().hex+".bin"
-            embeddingPath=os.path.join(cachePath,f)
-            answerPath=embeddingPath.replace(".bin",".json")
-            subPath=embeddingPath.replace(".bin","")
-            if isLast:
-                print("Not in cache!")
-                def writeAnswer(answer):
-                    print("Add answer to smart cache")
-                    EmbeddingsManager.write(embeddingPath,l[0])
-                    with open(answerPath, "w") as f:
-                        json.dump(answer, f)
-                return {
-                    "answer":None,
-                    "writeAnswer":writeAnswer
-                }
-            else:
-                print("Create deeper level")
-                os.mkdir(subPath)
-                cachePath=subPath
-                EmbeddingsManager.write(embeddingPath,l[0])
-
-                
-
-            
 
     
 def extractQuestionData(question,wordSalad):
@@ -251,51 +176,20 @@ def extractQuestionData(question,wordSalad):
 
 
 def queryChain(chain,question):
-    # shortQuestion=Summary.summarizeMarkdown(question,min_length=100,max_length=1024,withCodeBlocks=False)
-
     wordSalad=""
     for h in chain.memory.buffer: wordSalad+=h+" "
-    wordSalad+=" "+question
-    
+    wordSalad+=" "+question    
     [question,shortQuestion,context,keywords,wordSalad]=utils.enqueue(lambda :extractQuestionData(question,wordSalad))
-    # context=Summary.summarizeText(wordSalad,min_length=20,max_length=32)
-    # keywords=[]
-    # keywords.extend(Summary.getKeywords(shortQuestion,2))
-    # keywords.extend(Summary.getKeywords(Summary.summarizeText(wordSalad,min_length=10,max_length=20),3))
-
     affineDocs=utils.enqueue(lambda :getAffineDocs(question,context,keywords,shortQuestion,wordSalad))
-    print("Found ",len(affineDocs), " affine docs")
-        
-    
+    print("Found ",len(affineDocs), " affine docs")       
     print("Q: ", shortQuestion)
-
-    output=None
-    writeInCache=None
-    if CONFIG.get("SMART_CACHE",None)!=None:
-        cacheOutput=utils.enqueue(lambda: queryCache(wordSalad,shortQuestion,CONFIG.get("SMART_CACHE",None)))
-        if cacheOutput["answer"]!=None:
-            output=cacheOutput["answer"]
-        writeInCache=cacheOutput["writeAnswer"]
-
-    if not output:
-        output=chain({"input_documents": affineDocs, "question": shortQuestion}, return_only_outputs=True)    
-        if writeInCache!=None:
-            writeInCache(output)
-    else: 
-        print("Add cached output to history")
-        chain.memory.save_context(
-            {"question":question},
-            {"output_text":output["output_text"]},
-        )
-        #chain.memory.buffer.append( "\n" + "QUESTION: " + question+"\n"+"ANSWER: " + output["output_text"])
-        
-
+    output=chain({"input_documents": affineDocs, "question": shortQuestion}, return_only_outputs=True)    
     print("A :",output)
     return output
 
 
 sessions={}
-langchain.llm_cache = SQLiteCache(database_path=CONFIG["CACHE_PATH"]+"/langchain.db")
+langchain.llm_cache = SmartCache(CONFIG)#SQLiteCache(database_path=CONFIG["CACHE_PATH"]+"/langchain.db")
 
 def clearSessions():
     while True:
