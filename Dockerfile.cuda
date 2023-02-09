@@ -55,7 +55,6 @@ ENV NVIDIA_VISIBLE_DEVICES="all"
 
 COPY environment.yml /tmp/environment.yml
 COPY requirements.txt /tmp/requirements.txt
-COPY --from=faissbuilder /root/faiss/build/faiss/python/ /tmp/faiss-build
 WORKDIR /app
 
 USER root
@@ -66,8 +65,7 @@ apt-get install -y wget git && \
 apt-get clean && \
 rm -rf /var/lib/apt/lists/* &&\
 mkdir -p /app &&\
-chown nonroot:nonroot -Rf /app&&\
-chown nonroot:nonroot -Rf /tmp/faiss-build
+chown nonroot:nonroot -Rf /app
 
 USER nonroot
 RUN cd /tmp &&\
@@ -80,16 +78,49 @@ conda env create  -f environment.yml &&\
 conda activate jmebot&&\
 conda update --yes -n base -c defaults conda &&\
 pip install  --upgrade pip &&\
-conda install --yes -c nvidia  cuda-toolkit==11.7 libopenblas pytorch-cuda=11.7 pytorch==1.13.1  -c pytorch  &&\
+pip --verbose cache purge  &&\
+conda clean --all --yes 
+
+RUN eval "$($CONDA_DIR/bin/conda shell.bash hook)"&&\
+conda init bash &&\
+conda activate jmebot&&\
+conda install --yes -c nvidia  cuda-toolkit==11.7 libopenblas  -c pytorch &&\
+pip --verbose cache purge  &&\
+conda clean --all --yes 
+
+RUN eval "$($CONDA_DIR/bin/conda shell.bash hook)"&&\
+conda init bash &&\
+conda activate jmebot&&\
+conda install --yes -c nvidia  pytorch-cuda=11.7 pytorch==1.13.1  -c pytorch  &&\
 pip uninstall -y torch &&\
 pip install  torch==1.13.1 --extra-index-url https://download.pytorch.org/whl/cu117 &&\
+pip --verbose cache purge  &&\
+conda clean --all --yes 
+
+
+RUN eval "$($CONDA_DIR/bin/conda shell.bash hook)"&&\
+conda init bash &&\
+conda activate jmebot&&\
+cd /tmp &&\
 pip --verbose install -r requirements.txt &&\
+pip --verbose cache purge  &&\
+conda clean --all --yes 
+
+USER root
+COPY --from=faissbuilder /root/faiss/build/faiss/python/ /tmp/faiss-build
+RUN chown nonroot:nonroot -Rf /tmp/faiss-build
+
+USER nonroot
+RUN eval "$($CONDA_DIR/bin/conda shell.bash hook)"&&\
+conda init bash &&\
+conda activate jmebot&&\
 cd /tmp/faiss-build &&\
 python3 setup.py build &&\
 python3 setup.py install&&\
 pip uninstall --yes faiss-cpu &&\
 pip --verbose cache purge  &&\
 conda clean --all --yes 
+
 
 USER root
 ADD . /app
