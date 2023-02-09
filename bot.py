@@ -337,10 +337,16 @@ def session():
         }
     else:
         sessions[sessionSecret]["timeout"]=time.time()+60*30
+    welcomeText=""
+    welcomeText+=Translator.translate("en", lang,"Hi there! I'm an AI assistant for the open source game engine jMonkeyEngine. I can help you with questions related to the jMonkeyEngine source code, documentation, and other related topics.")
+    welcomeText+="<br><br>"
+    welcomeText+="<footer><span class=\"material-symbols-outlined\">tips_and_updates</span><span>"+Translator.translate("en", lang,"This chat bot is intended to provide helpful information, but accuracy is not guaranteed.")+"</span></footer>"
+
+       
     return json.dumps( {
         "sessionSecret": sessionSecret,
         "helloText":Translator.translate("en",lang,"Who are you?"),
-        "welcomeText":Translator.translate("en", lang,"Hi there! I'm an AI assistant for the open source game engine jMonkeyEngine. I can help you with questions related to the jMonkeyEngine source code, documentation, and other related topics.")
+        "welcomeText":welcomeText
     })
 
 @app.route("/query",methods = ['POST'])
