@@ -12,11 +12,11 @@ echo "{
     \"DEVICE\":\"$DEVICE\",
     \"USE_SUMY\":$USE_SUMY,
     \"SMART_CACHE\":[
-        [30,70],
-        [50,50],
-        [300,30],
-        [400,20],
-        [0,17]
+        [30,0.70],
+        [50,0.50],
+        [300,0.30],
+        [400,0.20],
+        [0,0.17]
     ],
     \"OPENAI_MODEL\":\"$OPENAI_MODEL\"
 }" > "$CONFIG_PATH"
