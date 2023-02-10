@@ -55,7 +55,7 @@ with open(confiFile, "r") as f:
     Translator.init(CONFIG)
 
 def getAffineDocs(question,context,keywords,shortQuestion, wordSalad=None, unitFilter=None,
-    maxFragmentsToReturn=5, maxFragmentsToSelect=12,merge=False):
+    maxFragmentsToReturn=3, maxFragmentsToSelect=12,merge=False):
     affineDocs=[]
 
    

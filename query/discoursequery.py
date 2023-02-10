@@ -81,7 +81,7 @@ class DiscourseQuery( basequery.BaseQuery):
                 print("Get initial question of",topicId)
                 data=getData()
                 initialQuestion=data["title"]+"\n"+data["post_stream"]["posts"][0]["cooked"]
-                initialQuestion=Summary.summarizeHTML(initialQuestion,max_length=256)
+                initialQuestion=Summary.summarizeHTML(initialQuestion,max_length=256,min_length=64,withCodeBlocks=True)
                 #print("Question:",initialQuestion)
                 v=EmbeddingsManager.new(Document(page_content=initialQuestion),self.CONFIG["DEVICE"])
                 EmbeddingsManager.write(questionPath,v)
@@ -115,7 +115,8 @@ class DiscourseQuery( basequery.BaseQuery):
                             isFirst=False
                     else:
                         c+="\n\nANSWER:\n"                
-                    c+=contentPart
+                    #c+=contentPart
+                    c+=Summary.summarizeHTML(contentPart,f"{discourseUrl}/t/{topicId}",max_length=256,min_length=64,withCodeBlocks=not isQuestion)
                     contentPart=""    
                     #print("Content",c)
                     content.append(c)                    
